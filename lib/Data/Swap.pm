@@ -15,7 +15,7 @@ the C<swap> method of L<Data::Alias>.
 
 use Data::Alias qw(swap);
 
-our $VERSION = $Data::Alias::VERSION;
+our $VERSION = '0.04';
 
 use base 'Exporter';
 

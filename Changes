@@ -1,7 +1,10 @@
 Revision history for Perl extension Data::Alias
 $Id: Changes,v 1.3 2004/08/24 13:34:41 xmath Exp $
 
-0.03  Sun Jul 18 16:58:21 CEST 2004
+0.04  Sun Aug 29 21:01:06 CEST 2004
+	- minor fix because PAUSE complained about missing version in Data::Swap
+
+0.03  Sun Aug 29 00:36:48 CEST 2004
 	- initial version of Data::Alias  (incorporates Data::Swap)
 	- fixed swapping objects with weakrefs
 
