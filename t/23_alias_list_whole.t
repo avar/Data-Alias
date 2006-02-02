@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# $Id: 23_alias_list_whole.t,v 1.1 2004/08/24 13:34:43 xmath Exp $
 
 use strict;
 use warnings qw(FATAL all);

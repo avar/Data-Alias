@@ -1,10 +1,9 @@
 #!/usr/bin/perl -w
-# $Id: 06_alias_scope.t,v 1.1 2004/08/24 13:34:42 xmath Exp $
 
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 47;
+use Test::More tests => 48;
 
 use Data::Alias;
 
@@ -71,5 +70,6 @@ is \eval { alias return $x, $y }, \$y;
 is_deeply refs(eval { alias return $x, $y }), refs($x, $y);
 is \eval 'alias return $x, $y', \$y;
 is_deeply refs(eval 'alias return $x, $y'), refs($x, $y);
+is \sub { for (1) { alias return $x, $y } }->(), \$y;
 
 # vim: ft=perl

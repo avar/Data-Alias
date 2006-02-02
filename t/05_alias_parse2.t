@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# $Id: 05_alias_parse2.t,v 1.3 2004/08/28 21:52:57 xmath Exp $
 
 use strict;
 use warnings qw(FATAL all);

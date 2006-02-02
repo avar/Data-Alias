@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# $Id: 01_deref.t,v 1.3 2004/08/24 13:34:41 xmath Exp $
 
 use strict;
 use warnings qw(FATAL all);

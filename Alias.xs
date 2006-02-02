@@ -1,8 +1,6 @@
-/* $Id: Alias.xs,v 1.7 2004/08/28 21:52:56 xmath Exp $ */
-
-/* Copyright (C) 2003, 2004  Matthijs van Duin <xmath@cpan.org>
+/* Copyright (C) 2003, 2004, 2006  Matthijs van Duin <xmath@cpan.org>
  *
- * Parts from perl, which is Copyright (C) 1991-2004 Larry Wall and others
+ * Parts from perl, which is Copyright (C) 1991-2006 Larry Wall and others
  *
  * You may distribute under the same terms as perl itself, which is either 
  * the GNU General Public License or the Artistic License.
@@ -16,6 +14,23 @@
 
 #ifdef avhv_keys
 #define SUPPORT_AVHV 1
+#endif
+
+#ifndef PERL_COMBI_VERSION
+#define PERL_COMBI_VERSION (PERL_REVISION * 1000000 + PERL_VERSION * 1000 + \
+				PERL_SUBVERSION)
+#endif
+
+#if (PERL_COMBI_VERSION >= 5009003)
+#define PL_no_helem PL_no_helem_sv
+#endif
+
+#ifndef SvPVX_const
+#define SvPVX_const SvPVX
+#endif
+
+#if (PERL_COMBI_VERSION >= 5009002)
+#define PERL59CALLS 1
 #endif
 
 #ifdef USE_5005THREADS
@@ -38,8 +53,6 @@
 
 #define DA_TIED_ERR "Can't %s alias %s tied %s"
 #define DA_ODD_HASH_ERR "Odd number of elements in hash assignment"
-#define DA_SWAP_OVERLOAD_ERR \
-	"Can't swap an overloaded object with a non-overloaded one"
 #define DA_TARGET_ERR "Unsupported alias target at %s line %"UVuf"\n"
 #define DA_DEREF_ERR "Can't deref string (\"%.32s\")"
 
@@ -910,6 +923,7 @@ STATIC OP *da_pp_return(pTHX) {
 	PMOP *newpm;
 	I32 optype = 0, type = 0;
 	SV *sv = (MARK < SP) ? TOPs : &PL_sv_undef;
+	OP *retop;
 
 	cxix = cxstack_ix;
 	while (cxix >= 0) {
@@ -917,46 +931,80 @@ STATIC OP *da_pp_return(pTHX) {
 		type = CxTYPE(cx);
 		if (type == CXt_EVAL || type == CXt_SUB || type == CXt_FORMAT)
 			break;
+		cxix--;
 	}
 
+#if PERL59CALLS
+	if (cxix < 0) {
+		if (CxMULTICALL(cxstack)) {	/* sort block */
+			dounwind(0);
+			*(PL_stack_sp = PL_stack_base + 1) = sv;
+			return 0;
+		}
+		DIE(aTHX_ "Can't return outside a subroutine");
+	}
+#else
 	if (PL_curstackinfo->si_type == PERLSI_SORT && cxix <= PL_sortcxix) {
 		if (cxstack_ix > PL_sortcxix)
 			dounwind(PL_sortcxix);
 		*(PL_stack_sp = PL_stack_base + 1) = sv;
 		return 0;
 	}
-
 	if (cxix < 0)
 		DIE(aTHX_ "Can't return outside a subroutine");
+#endif
+
+
 	if (cxix < cxstack_ix)
 		dounwind(cxix);
+
+#if PERL59CALLS
+	if (CxMULTICALL(&cxstack[cxix])) {
+		gimme = cxstack[cxix].blk_gimme;
+		if (gimme == G_VOID)
+			PL_stack_sp = PL_stack_base;
+		else if (gimme == G_SCALAR)
+			*(PL_stack_sp = PL_stack_base + 1) = sv;
+		return 0;
+	}
+#endif
 
 	POPBLOCK(cx, newpm);
 	switch (type) {
 	case CXt_SUB:
+#if PERL59CALLS
+		retop = cx->blk_sub.retop;
+#endif
 		cxstack_ix++; /* temporarily protect top context */
 		break;
 	case CXt_EVAL:
 		clearerr = !(PL_in_eval & EVAL_KEEPERR);
 		POPEVAL(cx);
+#if PERL59CALLS
+		retop = cx->blk_eval.retop;
+#endif
 		if (CxTRYBLOCK(cx))
 			break;
 		lex_end();
 		if (optype == OP_REQUIRE && !SvTRUE(sv)
 				&& (gimme == G_SCALAR || MARK == SP)) {
 			sv = cx->blk_eval.old_namesv;
-			hv_delete(GvHVn(PL_incgv), SvPVX(sv), SvCUR(sv),
+			hv_delete(GvHVn(PL_incgv), SvPVX_const(sv), SvCUR(sv),
 					G_DISCARD);
 			DIE(aTHX_ "%"SVf" did not return a true value", sv);
 		}
 		break;
 	case CXt_FORMAT:
 		POPFORMAT(cx);
+#if PERL59CALLS
+		retop = cx->blk_sub.retop;
+#endif
 		break;
 	default:
 		DIE(aTHX_ "panic: return");
 	}
 
+	TAINT_NOT;
 	if (gimme == G_SCALAR) {
 		if (MARK == SP) {
 			*++newsp = &PL_sv_undef;
@@ -970,6 +1018,7 @@ STATIC OP *da_pp_return(pTHX) {
 			*++newsp = sv = *++MARK;
 			if (!SvTEMP(sv) && !(SvREADONLY(sv) && SvIMMORTAL(sv)))
 				sv_2mortal(SvREFCNT_inc(sv));
+			TAINT_NOT;
 		}
 	}
 	PL_stack_sp = newsp;
@@ -983,8 +1032,11 @@ STATIC OP *da_pp_return(pTHX) {
 	PL_curpm = newpm;
 	LEAVESUB(sv);
 	if (clearerr)
-		sv_setpv(ERRSV, "");
-	return pop_return();
+		sv_setpvn(ERRSV, "", 0);
+#if (!PERL59CALLS)
+	retop = pop_return();
+#endif
+	return retop;
 }
 
 STATIC OP *da_pp_leavesub(pTHX) {
@@ -1474,7 +1526,7 @@ deref(...)
 				Perl_croak(aTHX_ DA_DEREF_ERR, SvPV(ST(i), z));
 			if (ckWARN(WARN_UNINITIALIZED))
 				Perl_warner(aTHX_ packWARN(WARN_UNINITIALIZED),
-					PL_warn_uninit, " in ", "deref");
+					"Use of uninitialized value in deref");
 			continue;
 		}
 		sv = SvRV(ST(i));
@@ -1526,41 +1578,4 @@ deref(...)
 		} else {
 			SP[i--] = sv;
 		}
-	}
-
-void
-swap(r1, r2)
-	SV *r1
-	SV *r2
-    PREINIT:
-	void *any;
-	U32 flags;
-	MAGIC *mg1 = NULL;
-	MAGIC *mg2 = NULL;
-    CODE:
-	if (!SvROK(r1) || !(r1 = SvRV(r1)) || !SvROK(r2) || !(r2 = SvRV(r2)))
-		Perl_croak(aTHX_ "Not a reference");
-	if (SvREADONLY(r1) || SvREADONLY(r2))
-		Perl_croak(aTHX_ PL_no_modify);
-	if ((SvFLAGS(ST(0)) ^ SvFLAGS(ST(1))) & SVf_AMAGIC)
-		Perl_croak(aTHX_ DA_SWAP_OVERLOAD_ERR);
-	if (SvMAGICAL(r1))
-		mg1 = mg_extract(r1, PERL_MAGIC_backref);
-	if (SvMAGICAL(r2))
-		mg2 = mg_extract(r2, PERL_MAGIC_backref);
-	any = r1->sv_any;
-	flags = r1->sv_flags;
-	r1->sv_any = r2->sv_any;
-	r1->sv_flags = r2->sv_flags;
-	r2->sv_any = any;
-	r2->sv_flags = flags;
-	if (mg1) {
-		SvUPGRADE(r1, SVt_PVMG);
-		mg1->mg_moremagic = SvMAGIC(r1);
-		SvMAGIC(r1) = mg1;
-	}
-	if (mg2) {
-		SvUPGRADE(r2, SVt_PVMG);
-		mg2->mg_moremagic = SvMAGIC(r2);
-		SvMAGIC(r2) = mg2;
 	}

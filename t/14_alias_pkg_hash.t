@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# $Id: 14_alias_pkg_hash.t,v 1.1 2004/08/24 13:34:42 xmath Exp $
 
 use strict;
 use warnings qw(FATAL all);

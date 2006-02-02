@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# $Id: 24_alias_cond.t,v 1.1 2004/08/25 10:39:26 xmath Exp $
 
 use strict;
 use warnings qw(FATAL all);

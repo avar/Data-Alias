@@ -5,9 +5,7 @@ META.yml
 Makefile.PL
 README
 lib/Data/Alias.pm
-lib/Data/Swap.pm
 t/01_deref.t
-t/02_swap.t
 t/03_copy.t
 t/04_alias_parse.t
 t/05_alias_parse2.t

@@ -1,6 +1,4 @@
-$Id: README,v 1.8 2004/08/28 21:52:57 xmath Exp $
-
-Data::Alias 0.03 -- No-copy variable manipulation
+Data::Alias 0.05 -- No-copy variable manipulation
 
 To install this module type the following:
 
@@ -34,13 +32,6 @@ SYNOPSIS
         # Note that I omitted \%z from the @refs because $_++ would fail 
         # on a key, but deref does work on hash-refs too of course.
 
-        use Data::Alias qw(swap);
-
-        my $p = [];  my $q = {};
-        print "$p $q\n";            # ARRAY(0x965cc) HASH(0x966b0)
-        swap $p, $q;                # swap variable contents
-        print "$p $q\n";            # HASH(0x965cc) ARRAY(0x966b0)
-
 DESCRIPTION
     This module contains functions to work with variables without copying
     data around. You can use them for efficiency, or because you desire the
@@ -52,8 +43,7 @@ DESCRIPTION
     semantics and makes a copy of the result list. Both are exported by
     default.
 
-    Two minor functions, "deref" and "swap", are two unrelated operations
-    that involve no data being copied. They are not exported by default.
+    The utility function "deref" is not exported by default.
 
   alias LIST
     Evaluates the list with alias semantics, which just means that the
@@ -138,21 +128,10 @@ DESCRIPTION
     exists because you can't use "map" for this application, as it makes
     copies of the dereferenced values.
 
-  swap REF1, REF2
-    Swaps the contents (and if necessary, type) of two referenced variables.
-
-    A typical application is to change the base type of an object after it
-    has been created, for example for on-demand loading of a data structure.
-
-KNOWN ISSUES
-    You can't "swap" an overloaded object with a non-overloaded one. Also,
-    don't use "swap" to change the type of a directly accessible variable --
-    like "swap \$x, \@y". That's just asking for segfaults. Unfortunately
-    there is no good way for me to detect and prevent this.
-
 AUTHOR
     Matthijs van Duin <xmath@cpan.org>
 
-    Copyright (C) 2003, 2004 Matthijs van Duin. All rights reserved. This
-    program is free software; you can redistribute it and/or modify it under
-    the same terms as Perl itself.
+    Copyright (C) 2003, 2004, 2006 Matthijs van Duin. All rights reserved.
+    This program is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+

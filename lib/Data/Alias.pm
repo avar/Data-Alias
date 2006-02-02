@@ -1,5 +1,3 @@
-# $Id: Alias.pm,v 1.10 2004/08/28 22:36:14 xmath Exp $
-
 package Data::Alias;
 
 =head1 NAME
@@ -26,13 +24,6 @@ Data::Alias - Comprehensive set of aliasing operations
     # Note that I omitted \%z from the @refs because $_++ would fail 
     # on a key, but deref does work on hash-refs too of course.
 
-    use Data::Alias qw(swap);
-
-    my $p = [];  my $q = {};
-    print "$p $q\n";            # ARRAY(0x965cc) HASH(0x966b0)
-    swap $p, $q;		# swap variable contents
-    print "$p $q\n";            # HASH(0x965cc) ARRAY(0x966b0)
-
 =head1 DESCRIPTION
 
 This module contains functions to work with variables without copying data 
@@ -44,8 +35,7 @@ of operator which applies I<alias semantics> to the evaluation of its argument
 list.  Another function, C<copy>, restores the normal semantics and makes a 
 copy of the result list.  Both are exported by default.
 
-Two minor functions, C<deref> and C<swap>, are two unrelated operations that 
-involve no data being copied.  They are not exported by default.
+The utility function C<deref> is not exported by default.
 
 =head2 alias I<LIST>
 
@@ -144,25 +134,11 @@ Dereferences a list of scalar refs, array refs and hash refs.  Mainly exists
 because you can't use C<map> for this application, as it makes copies of the 
 dereferenced values.
 
-=head2 swap I<REF1>, I<REF2>
-
-Swaps the contents (and if necessary, type) of two referenced variables.
-
-A typical application is to change the base type of an object after it has 
-been created, for example for on-demand loading of a data structure.
-
-=head1 KNOWN ISSUES
-
-You can't C<swap> an overloaded object with a non-overloaded one.  Also, don't 
-use C<swap> to change the type of a directly accessible variable -- like 
-C<swap \$x, \@y>.  That's just asking for segfaults.  Unfortunately there is 
-no good way for me to detect and prevent this.
-
 =head1 AUTHOR
 
 Matthijs van Duin <xmath@cpan.org>
 
-Copyright (C) 2003, 2004  Matthijs van Duin.  All rights reserved.
+Copyright (C) 2003, 2004, 2006  Matthijs van Duin.  All rights reserved.
 This program is free software; you can redistribute it and/or modify 
 it under the same terms as Perl itself.
 
@@ -173,13 +149,13 @@ use 5.008001;
 use strict;
 use warnings;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use base 'Exporter';
 use base 'DynaLoader';
 
 our @EXPORT = qw(alias copy);
-our @EXPORT_OK = qw(alias copy deref swap);
+our @EXPORT_OK = qw(alias copy deref);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 bootstrap Data::Alias $VERSION;
