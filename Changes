@@ -1,5 +1,9 @@
 Revision history for Perl extension Data::Alias
 
+0.06  Mon Feb 06 00:35:24 CET 2006
+	- fixed memory mismanagement bug (crash)
+	- fixed parse failure of 'alias' or 'copy' at EOF
+
 0.05  Wed Jan 25 15:48:14 CET 2006
 	- split off Data::Swap again
 	- perl 5.9.3 support

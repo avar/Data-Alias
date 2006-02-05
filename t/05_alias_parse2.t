@@ -4,7 +4,7 @@ use strict;
 use warnings qw(FATAL all);
 no warnings 'void';
 use lib 'lib';
-use Test::More tests => 15;
+use Test::More tests => 16;
 use File::Spec;
 
 use Data::Alias;
@@ -48,3 +48,5 @@ like $@, qr/^Unsupported alias target .* line 3$/;
 is \alias(sub { $x })->(), \$x;
 
 # vim: ft=perl
+
+is \undef, scalar \alias

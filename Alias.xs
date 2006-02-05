@@ -12,13 +12,20 @@
 #include "perl.h"
 #include "XSUB.h"
 
-#ifdef avhv_keys
-#define SUPPORT_AVHV 1
+
+#ifdef USE_5005THREADS
+#error "5.005 threads not supported by Data::Alias"
 #endif
+
 
 #ifndef PERL_COMBI_VERSION
 #define PERL_COMBI_VERSION (PERL_REVISION * 1000000 + PERL_VERSION * 1000 + \
 				PERL_SUBVERSION)
+#endif
+
+
+#ifdef avhv_keys
+#define DA_FEATURE_AVHV 1
 #endif
 
 #if (PERL_COMBI_VERSION >= 5009003)
@@ -30,12 +37,10 @@
 #endif
 
 #if (PERL_COMBI_VERSION >= 5009002)
-#define PERL59CALLS 1
+#define DA_FEATURE_MULTICALL 1
+#define DA_FEATURE_RETOP 1
 #endif
 
-#ifdef USE_5005THREADS
-#error "5.005 threads not supported by Data::Alias"
-#endif
 
 #define DA_AELEM 1
 #define DA_HELEM 2
@@ -140,7 +145,7 @@ STATIC SV *da_target_gv(pTHX_ GV *gv) {
 	return da_target_ex(aTHX_ DA_GV, (SV *) gv, 0);
 }
 
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 STATIC SV *da_target_avhv(pTHX_ SV *sv) {
 	return da_target_ex(aTHX_ DA_AVHV, sv, 0);
 }
@@ -358,7 +363,7 @@ STATIC OP *da_pp_aelem(pTHX) {
 	RETURN;
 }
 
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 STATIC I32 da_avhv_index(pTHX_ AV *av, SV *key) {
 	HV *keys = (HV *) SvRV(*AvARRAY(av));
 	HE *he = hv_fetch_ent(keys, key, FALSE, 0);
@@ -387,7 +392,7 @@ STATIC OP *da_pp_helem(pTHX) {
 	if (SvRMAGICAL(hv))
 		DIE(aTHX_ DA_TIED_ERR, "put", "into", "hash");
 	if (SvTYPE(hv) != SVt_PVHV) {
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 		I32 i;
 		if (SvTYPE(hv) != SVt_PVAV || !avhv_keys((AV *) hv))
 			RETPUSHUNDEF;
@@ -449,7 +454,7 @@ STATIC OP *da_pp_hslice(pTHX) {
 	if (SvRMAGICAL(hv))
 		DIE(aTHX_ DA_TIED_ERR, "put", "into", "hash");
 	if (SvTYPE(hv) != SVt_PVHV) {
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 		I32 i;
 		if (SvTYPE(hv) != SVt_PVAV || !avhv_keys((AV *) hv)) {
 			SP = MARK;
@@ -541,7 +546,7 @@ STATIC OP *da_pp_rv2sv(pTHX) {
 	RETURN;
 }
 
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 STATIC OP *da_pp_rv2hv(pTHX) {
 	dSP;
 	pp_rv2hv();
@@ -693,7 +698,7 @@ STATIC OP *da_pp_aassign(pTHX) {
 			}
 			break;
 		}
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 		phash: {
 			SV *key, *val, **svp = rlast, **he;
 			U32 dups = 0;
@@ -934,7 +939,7 @@ STATIC OP *da_pp_return(pTHX) {
 		cxix--;
 	}
 
-#if PERL59CALLS
+#if DA_FEATURE_MULTICALL
 	if (cxix < 0) {
 		if (CxMULTICALL(cxstack)) {	/* sort block */
 			dounwind(0);
@@ -958,7 +963,7 @@ STATIC OP *da_pp_return(pTHX) {
 	if (cxix < cxstack_ix)
 		dounwind(cxix);
 
-#if PERL59CALLS
+#if DA_FEATURE_MULTICALL
 	if (CxMULTICALL(&cxstack[cxix])) {
 		gimme = cxstack[cxix].blk_gimme;
 		if (gimme == G_VOID)
@@ -972,7 +977,7 @@ STATIC OP *da_pp_return(pTHX) {
 	POPBLOCK(cx, newpm);
 	switch (type) {
 	case CXt_SUB:
-#if PERL59CALLS
+#if DA_FEATURE_RETOP
 		retop = cx->blk_sub.retop;
 #endif
 		cxstack_ix++; /* temporarily protect top context */
@@ -980,7 +985,7 @@ STATIC OP *da_pp_return(pTHX) {
 	case CXt_EVAL:
 		clearerr = !(PL_in_eval & EVAL_KEEPERR);
 		POPEVAL(cx);
-#if PERL59CALLS
+#if DA_FEATURE_RETOP
 		retop = cx->blk_eval.retop;
 #endif
 		if (CxTRYBLOCK(cx))
@@ -996,7 +1001,7 @@ STATIC OP *da_pp_return(pTHX) {
 		break;
 	case CXt_FORMAT:
 		POPFORMAT(cx);
-#if PERL59CALLS
+#if DA_FEATURE_RETOP
 		retop = cx->blk_sub.retop;
 #endif
 		break;
@@ -1033,7 +1038,7 @@ STATIC OP *da_pp_return(pTHX) {
 	LEAVESUB(sv);
 	if (clearerr)
 		sv_setpvn(ERRSV, "", 0);
-#if (!PERL59CALLS)
+#if (!DA_FEATURE_RETOP)
 	retop = pop_return();
 #endif
 	return retop;
@@ -1100,7 +1105,7 @@ STATIC void da_lvalue(pTHX_ OP *op, int list) {
 	case OP_RV2HV:
 		if (!list)
 			goto bad;
-#if SUPPORT_AVHV
+#if DA_FEATURE_AVHV
 		if (op->op_ppaddr != da_pp_rv2sv
 				&& cUNOPx(op)->op_first->op_type != OP_GV)
 			op->op_ppaddr = da_pp_rv2hv;
@@ -1379,13 +1384,13 @@ STATIC OP *da_ck_rv2cv(pTHX_ OP *o) {
 	SvPOK_off(cv);
 	s = PL_oldbufptr;
 	while (s < PL_bufend && isSPACE(*s)) s++;
-	if (memNE(s, PL_tokenbuf, strlen(PL_tokenbuf))) {
-		yyerror("da parse weirdness 1");
-		return o;
+	if (memEQ(s, PL_tokenbuf, strlen(PL_tokenbuf))) {
+		s += strlen(PL_tokenbuf);
+		if (PL_bufptr > s) s = PL_bufptr;
+		while (s < PL_bufend && isSPACE(*s)) s++;
+	} else {
+		s = "";
 	}
-	s += strlen(PL_tokenbuf);
-	if (PL_bufptr > s) s = PL_bufptr;
-	while (s < PL_bufend && isSPACE(*s)) s++;
 	op_null(o);
 	o->op_ppaddr = da_tag_rv2cv;
 	if (cv == da_cv)
@@ -1448,6 +1453,7 @@ STATIC OP *da_ck_entersub(pTHX_ OP *o) {
 	dDA;
 	OP *kid = cUNOPo->op_first;
 	OP *last = kLISTOP->op_last;
+	OP *tmp;
 	int inside;
 	if (!DA_ACTIVE || !(kid->op_flags & OPf_KIDS)
 				|| last->op_ppaddr != da_tag_rv2cv)
@@ -1463,10 +1469,13 @@ STATIC OP *da_ck_entersub(pTHX_ OP *o) {
 	kid->op_type = OP_LIST;
 	kid->op_targ = 0;
 	kid->op_ppaddr = da_tag_list;
-	kid = kLISTOP->op_first;
+	tmp = kLISTOP->op_first;
 	if (inside)
-		op_null(kid);
-	Renewc(kid, 1, UNOP, OP);
+		op_null(tmp);
+	Renewc(tmp, 1, UNOP, OP);
+	tmp->op_next = tmp;
+	kLISTOP->op_first = tmp;
+	kid = tmp;
 	kUNOP->op_first = last;
 	while (kid->op_sibling != last)
 		kid = kid->op_sibling;
