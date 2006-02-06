@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 29;
+use Test::More tests => 31;
 
 use Data::Alias;
 
@@ -50,5 +50,13 @@ isnt \%y, \%z;
 isnt \alias(%x = (%z)), \%z;
 isnt \%x, \%z;
 is \$x{x}, \$z{x};
+
+sub foo {
+	alias $x = "inner";
+	sub { $x }
+}
+
+is foo->(), "inner";
+isnt $x, "inner";
 
 # vim: ft=perl

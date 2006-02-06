@@ -44,7 +44,6 @@
 
 #define DA_AELEM 1
 #define DA_HELEM 2
-#define DA_PADSV 3
 #define DA_RVSV  4
 #define DA_GV    5
 #define DA_AVHV  6
@@ -133,10 +132,6 @@ STATIC SV *da_target_helem(pTHX_ HV *hv, SV *key) {
 	return sv;
 }
 
-STATIC SV *da_target_padsv(pTHX_ I32 padoffset) {
-	return da_target_ex(aTHX_ DA_PADSV, (SV *) PL_comppad, padoffset);
-}
-
 STATIC SV *da_target_rvsv(pTHX_ SV *rv) {
 	return da_target_ex(aTHX_ DA_RVSV, rv, 0);
 }
@@ -151,42 +146,11 @@ STATIC SV *da_target_avhv(pTHX_ SV *sv) {
 }
 #endif
 
-STATIC PADOFFSET find_outerlex(pTHX_ CV **cvp, const char *name) {
-	CV *cv = *cvp;
-	U32 seq;
-	PADOFFSET fake = 0, i;
-	AV *av;
-	SV **svp;
-
- again:	seq = CvOUTSIDE_SEQ(cv);
-	*cvp = cv = CvOUTSIDE(cv);
-	if (!cv || !CvDEPTH(cv))
-		return 0;
-
-	av = (AV *) *AvARRAY(CvPADLIST(cv));
-	svp = AvARRAY(av);
-	for (i = AvFILLp(av); i; i--) {
-		SV *sv = svp[i];
-		if (!sv || !SvPOK(sv) || !strEQ(SvPVX(sv), name))
-			continue;
-		if (SvFAKE(sv))
-			fake = i;
-		else if (seq > U_32(SvNVX(sv)) && seq <= (U32) SvIVX(sv))
-			return i;
-	}
-
-	if (!fake)
-		goto again;
-
-	return fake;
-}
-
 STATIC SV *da_fetch(pTHX_ SV *sv) {
 	if (!DA_TARGET(sv))
 		goto bogus;
 	switch (LvTARGLEN(sv)) {
-	case DA_AELEM:
-	case DA_PADSV: {
+	case DA_AELEM: {
 		SV **svp = av_fetch((AV *) LvTARG(sv), LvTARGOFF(sv), FALSE);
 		return svp ? *svp : &PL_sv_undef;
 	} case DA_HELEM: {
@@ -224,24 +188,7 @@ STATIC void da_alias(pTHX_ SV *sv, SV *value) {
 		else if (!hv_store_ent((HV *) LvTARG(sv), sv, value, 0))
 			SvREFCNT_dec(value);
 		break;
-	case DA_PADSV: {
-		CV *cv = find_runcv(NULL);
-		AV *av = (AV *) LvTARG(sv);
-		PADOFFSET po = LvTARGOFF(sv);
-		if (av != PL_comppad)
-			Perl_croak(aTHX_ "Foreign pad variable");
-		while (42) {
-			av_store(av, po, SvREFCNT_inc(value));
-			sv = AvARRAY(*AvARRAY(CvPADLIST(cv)))[po];
-			if (!sv || !SvPOK(sv) || !SvFAKE(sv))
-				break;
-			po = find_outerlex(aTHX_ &cv, SvPVX(sv));
-			if (!po)
-				break;
-			av = (AV *) AvARRAY(CvPADLIST(cv))[CvDEPTH(cv)];
-		}
-		break;
-	} case DA_RVSV:
+	case DA_RVSV:
 		if (SvTYPE(LvTARG(sv)) == SVt_PVGV)
 			goto globassign;
 		SvSetMagicSV(LvTARG(sv), sv_2mortal(newRV_inc(value)));
@@ -416,7 +363,7 @@ STATIC OP *da_pp_helem(pTHX) {
 STATIC OP *da_pp_aslice(pTHX) {
 	dSP; dMARK;
 	AV *av = (AV *) POPs;
-	I32 max = -1, count, i;
+	IV max = -1, count, i;
 	SV **svp = MARK;
 	if (SvTYPE(av) != SVt_PVAV)
 		DIE(aTHX_ "Not an array");
@@ -438,7 +385,7 @@ STATIC OP *da_pp_aslice(pTHX) {
 	svp = AvARRAY(av);
 	AvFILLp(av) = max;
 	while (++MARK <= SP) {
-		i = (I32) *MARK;
+		i = (IV) *MARK;
 		if (PL_op->op_private & OPpLVAL_INTRO)
 			save_aelem(av, i, av_fetch(av, i, TRUE));
 		*MARK = da_target_aelem(aTHX_ av, i);
@@ -485,10 +432,7 @@ STATIC OP *da_pp_padsv(pTHX) {
 	dSP;
 	if (PL_op->op_private & OPpLVAL_INTRO)
 		SAVECLEARSV(PAD_SVl(PL_op->op_targ));
-	if (PL_op->op_private & OPpOUTERPAD)
-		XPUSHs(da_target_padsv(aTHX_ PL_op->op_targ));
-	else
-		XPUSHs(da_target_aelem(aTHX_ PL_comppad, PL_op->op_targ));
+	XPUSHs(da_target_aelem(aTHX_ PL_comppad, PL_op->op_targ));
 	RETURN;
 }
 

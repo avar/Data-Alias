@@ -21,7 +21,6 @@ t/14_alias_pkg_hash.t
 t/15_alias_pkg_misc.t
 t/16_alias_refs.t
 t/17_alias_lex_inner.t
-t/18_alias_lex_outer.t
 t/19_alias_aelem.t
 t/20_alias_helem.t
 t/21_alias_list_basic.t
