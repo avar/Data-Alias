@@ -1,5 +1,9 @@
 Revision history for Perl extension Data::Alias
 
+0.08  Wed Feb  8 20:19:58 CET 2006
+	- avoid giving the "tied array/hash" error when inappropriate, such
+	  as when the array/hash is merely the target of weakrefs
+
 0.07  Mon Feb  6 16:43:35 CET 2006
 	- removed outer lexical support, since it can't be made to work in
 	  any consistent way

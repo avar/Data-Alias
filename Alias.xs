@@ -290,12 +290,22 @@ STATIC OP *da_pp_aelemfast(pTHX) {
 	RETURN;
 }
 
+STATIC bool da_badmagic(pTHX_ SV *sv) {
+	MAGIC *mg = SvMAGIC(sv);
+	while (mg) {
+		if (isUPPER(mg->mg_type))
+			return TRUE;
+		mg = mg->mg_moremagic;
+	}
+	return FALSE;
+}
+
 STATIC OP *da_pp_aelem(pTHX) {
 	dSP;
 	SV *elem = POPs, **svp;
 	AV *av = (AV *) POPs;
 	IV index = SvIV(elem);
-	if (SvRMAGICAL(av))
+	if (SvRMAGICAL(av) && da_badmagic(aTHX_ (SV *) av))
 		DIE(aTHX_ DA_TIED_ERR, "put", "into", "array");
 	if (SvROK(elem) && !SvGAMAGIC(elem) && ckWARN(WARN_MISC))
 		Perl_warner(aTHX_ packWARN(WARN_MISC),
@@ -336,7 +346,7 @@ STATIC OP *da_pp_helem(pTHX) {
 	SV *key = POPs;
 	HV *hv = (HV *) POPs;
 	HE *he;
-	if (SvRMAGICAL(hv))
+	if (SvRMAGICAL(hv) && da_badmagic(aTHX_ (SV *) hv))
 		DIE(aTHX_ DA_TIED_ERR, "put", "into", "hash");
 	if (SvTYPE(hv) != SVt_PVHV) {
 #if DA_FEATURE_AVHV
@@ -367,7 +377,7 @@ STATIC OP *da_pp_aslice(pTHX) {
 	SV **svp = MARK;
 	if (SvTYPE(av) != SVt_PVAV)
 		DIE(aTHX_ "Not an array");
-	if (SvRMAGICAL(av))
+	if (SvRMAGICAL(av) && da_badmagic(aTHX_ (SV *) av))
 		DIE(aTHX_ DA_TIED_ERR, "put", "into", "array");
 	count = AvFILLp(av) + 1;
 	while (++svp <= SP) {
@@ -398,7 +408,7 @@ STATIC OP *da_pp_hslice(pTHX) {
 	HV *hv = (HV *) POPs;
 	SV *key;
 	HE *he;
-	if (SvRMAGICAL(hv))
+	if (SvRMAGICAL(hv) && da_badmagic(aTHX_ (SV *) hv))
 		DIE(aTHX_ DA_TIED_ERR, "put", "into", "hash");
 	if (SvTYPE(hv) != SVt_PVHV) {
 #if DA_FEATURE_AVHV
@@ -581,7 +591,7 @@ STATIC OP *da_pp_aassign(pTHX) {
 		switch (SvTYPE(sv)) {
 		case SVt_PVAV: {
 			SV **svp;
-			if (SvRMAGICAL(sv))
+			if (SvRMAGICAL(sv) && da_badmagic(aTHX_ sv))
 				DIE(aTHX_ DA_TIED_ERR, "put", "into", "array");
 			av_clear((AV *) sv);
 			if (done || right > rlast)
@@ -596,7 +606,7 @@ STATIC OP *da_pp_aassign(pTHX) {
 			SV *tmp, *val, **svp = rlast;
 			U32 dups = 0, nils = 0;
 			HE *he;
-			if (SvRMAGICAL(sv))
+			if (SvRMAGICAL(sv) && da_badmagic(aTHX_ sv))
 				DIE(aTHX_ DA_TIED_ERR, "put", "into", "hash");
 			hv_clear((HV *) sv);
 			if (done || right > rlast)
@@ -647,7 +657,7 @@ STATIC OP *da_pp_aassign(pTHX) {
 			SV *key, *val, **svp = rlast, **he;
 			U32 dups = 0;
 			I32 i;
-			if (SvRMAGICAL(sv))
+			if (SvRMAGICAL(sv) && da_badmagic(aTHX_ sv))
 				DIE(aTHX_ DA_TIED_ERR, "put", "into", "hash");
 			avhv_keys((AV *) sv);
 			av_fill((AV *) sv, 0);
@@ -743,7 +753,7 @@ STATIC OP *da_pp_push(pTHX) {
 	dSP; dMARK; dORIGMARK; dTARGET;
 	AV *av = (AV *) *++MARK;
 	I32 i;
-	if (SvRMAGICAL(av))
+	if (SvRMAGICAL(av) && da_badmagic(aTHX_ (SV *) av))
 		DIE(aTHX_ DA_TIED_ERR, "push", "onto", "array");
 	i = AvFILL(av);
 	av_extend(av, i + (SP - MARK));
@@ -758,7 +768,7 @@ STATIC OP *da_pp_unshift(pTHX) {
 	dSP; dMARK; dORIGMARK; dTARGET;
 	AV *av = (AV *) *++MARK;
 	I32 i = 0;
-	if (SvRMAGICAL(av))
+	if (SvRMAGICAL(av) && da_badmagic(aTHX_ (SV *) av))
 		DIE(aTHX_ DA_TIED_ERR, "unshift", "onto", "array");
 	av_unshift(av, SP - MARK);
 	while (MARK < SP)
@@ -776,7 +786,7 @@ STATIC OP *da_pp_splice(pTHX) {
 	SV **svp, *tmp;
 	if (ins < 0) /* ?! */
 		DIE(aTHX_ "Too few arguments for da_pp_splice");
-	if (SvRMAGICAL(av))
+	if (SvRMAGICAL(av) && da_badmagic(aTHX_ (SV *) av))
 		DIE(aTHX_ DA_TIED_ERR, "splice", "onto", "array");
 	count = AvFILLp(av) + 1;
 	off = SvIV(MARK[2]);
