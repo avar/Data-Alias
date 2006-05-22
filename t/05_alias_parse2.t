@@ -2,9 +2,8 @@
 
 use strict;
 use warnings qw(FATAL all);
-no warnings 'void';
 use lib 'lib';
-use Test::More tests => 16;
+use Test::More tests => 17;
 use File::Spec;
 
 use Data::Alias;
@@ -34,18 +33,22 @@ alias(sub { $x = $z })->();
 is \$x, \$z;
 
 $x++;
-alias { 42; $x } = $y;
+alias { {;} $x } = $y;
 is \$x, \$z;
 is $x, $y;
 
+eval "{;}\n\nalias { Data::Alias::deref = 42 };\n\n{;}\n";
+like $@, qr/^Unsupported alias target .* line 3\b/;
+
+eval "{;}\n\n\$x = alias \$y;\n\n{;}\n";
+like $@, qr/^Useless use of alias .* line 3\b/;
+
+is \alias(sub { $x })->(), \$x;
+
+no warnings 'void';
 alias copy alias copy $x = 99;
 is \$x, \$z;
 is $x, 99;
-
-eval "42;\n\nalias { Data::Alias::deref = 42 };\n\n42\n";
-like $@, qr/^Unsupported alias target .* line 3$/;
-
-is \alias(sub { $x })->(), \$x;
 
 # vim: ft=perl
 

@@ -149,7 +149,7 @@ use 5.008001;
 use strict;
 use warnings;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use base 'Exporter';
 use base 'DynaLoader';

@@ -28,6 +28,7 @@ t/22_alias_list_slice.t
 t/23_alias_list_whole.t
 t/24_alias_cond.t
 t/25_alias_weakref.t
+t/26_alias_local.t
 t/lib/assign.pm
 t/lib/Test/Builder.pm
 t/lib/Test/More.pm

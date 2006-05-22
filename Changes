@@ -1,5 +1,10 @@
 Revision history for Perl extension Data::Alias
 
+0.09  Mon May 22 17:12:06 CET 2006
+	- suppress warnings when using 64-bit integers on 32-bit arch
+	- 'local' now doesn't act differently on tied vars than on normal ones
+	- added "Useless use of alias" warning (category 'void')
+
 0.08  Wed Feb  8 20:19:58 CET 2006
 	- avoid giving the "tied array/hash" error when inappropriate, such
 	  as when the array/hash is merely the target of weakrefs

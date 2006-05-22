@@ -13,6 +13,8 @@ sub context : lvalue { my $x = defined(wantarray) ? 1 + wantarray : 0; $x }
 
 our ($x, $y);
 
+no warnings 'void';
+
 # context
 is alias(context), 1;
 is +(alias context)[0], 2;

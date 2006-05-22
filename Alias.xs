@@ -41,6 +41,8 @@
 #define DA_FEATURE_RETOP 1
 #endif
 
+#define DA_ARRAY_MAXIDX ((IV) ((Size_t) -1 / sizeof(SV *)) )
+
 
 #define DA_AELEM 1
 #define DA_HELEM 2
@@ -52,6 +54,8 @@
 #define OPpALIASAV  2
 #define OPpALIASHV  4
 #define OPpALIAS (OPpALIASAV | OPpALIASHV)
+
+#define OPpUSEFUL 128
 
 #define MOD(op) mod((op), OP_GREPSTART)
 
@@ -244,6 +248,34 @@ STATIC void da_alias(pTHX_ SV *sv, SV *value) {
 	}
 }
 
+STATIC void da_unlocalize_gvar(pTHX_ GP *gp) {
+	SV *value = (SV *) SSPOPPTR;
+	SV **sptr = (SV **) SSPOPPTR;
+	SV *old = *sptr;
+	*sptr = value;
+	SvREFCNT_dec(old);
+
+	if (gp->gp_refcnt > 1) {
+		--gp->gp_refcnt;
+	} else {
+		SV *gv = newSV(0);
+		sv_upgrade(gv, SVt_PVGV);
+		GvGP(gv) = gp;
+		sv_free(gv);
+	}
+}
+
+STATIC void da_localize_gvar(pTHX_ GP *gp, SV **sptr) {
+	SSCHECK(5);
+	SSPUSHPTR(sptr);
+	SSPUSHPTR(*sptr);
+	SSPUSHDXPTR((void (*)(pTHX_ void *)) da_unlocalize_gvar);
+	SSPUSHPTR(gp);
+	SSPUSHINT(SAVEt_DESTRUCTOR_X);
+	++gp->gp_refcnt;
+	*sptr = Nullsv;
+}
+
 STATIC OP *da_pp_anonlist(pTHX) {
 	dSP; dMARK;
 	I32 i = SP - MARK;
@@ -283,10 +315,10 @@ STATIC OP *da_pp_aelemfast(pTHX) {
 	dSP;
 	AV *av = (PL_op->op_flags & OPf_SPECIAL) ?
 			(AV *) PAD_SV(PL_op->op_targ) : GvAVn(cGVOP_gv);
-	SV **svp = av_fetch(av, PL_op->op_private, TRUE);
-	if (!svp || *svp == &PL_sv_undef)
-		DIE(aTHX_ PL_no_aelem, PL_op->op_private);
-	PUSHs(da_target_aelem(aTHX_ av, PL_op->op_private));
+	IV index = PL_op->op_private;
+	if (!av_fetch(av, index, TRUE))
+		DIE(aTHX_ PL_no_aelem, index);
+	PUSHs(da_target_aelem(aTHX_ av, index));
 	RETURN;
 }
 
@@ -312,7 +344,7 @@ STATIC OP *da_pp_aelem(pTHX) {
 			"Use of reference \"%"SVf"\" as array index", elem);
 	if (SvTYPE(av) != SVt_PVAV)
 		RETPUSHUNDEF;
-	if (!(svp = av_fetch(av, index, TRUE)))
+	if (index > DA_ARRAY_MAXIDX || !(svp = av_fetch(av, index, TRUE)))
 		DIE(aTHX_ PL_no_aelem, index);
 	if (PL_op->op_private & OPpLVAL_INTRO)
 		save_aelem(av, index, svp);
@@ -382,11 +414,11 @@ STATIC OP *da_pp_aslice(pTHX) {
 	count = AvFILLp(av) + 1;
 	while (++svp <= SP) {
 		i = SvIVx(*svp);
+		if (i > DA_ARRAY_MAXIDX || (i < 0 && (i += count) < 0))
+			DIE(aTHX_ PL_no_aelem, SvIVX(*svp));
 		if (i > max)
 			max = i;
-		else if (i < 0 && (i += count) < 0)
-			DIE(aTHX_ PL_no_aelem, SvIVX(*svp));
-		*svp = (SV *) i;
+		*svp = (SV *) (Size_t) i;
 	}
 	if (max > AvMAX(av))
 		av_extend(av, max);
@@ -395,7 +427,7 @@ STATIC OP *da_pp_aslice(pTHX) {
 	svp = AvARRAY(av);
 	AvFILLp(av) = max;
 	while (++MARK <= SP) {
-		i = (IV) *MARK;
+		i = (IV) (Size_t) *MARK;
 		if (PL_op->op_private & OPpLVAL_INTRO)
 			save_aelem(av, i, av_fetch(av, i, TRUE));
 		*MARK = da_target_aelem(aTHX_ av, i);
@@ -449,9 +481,22 @@ STATIC OP *da_pp_padsv(pTHX) {
 STATIC OP *da_pp_gvsv(pTHX) {
 	dSP;
 	GV *gv = cGVOP_gv;
-	if (PL_op->op_private & OPpLVAL_INTRO)
-		save_scalar(gv);
+	if (PL_op->op_private & OPpLVAL_INTRO) {
+		da_localize_gvar(aTHX_ GvGP(gv), &GvSV(gv));
+		GvSV(gv) = newSV(0);
+	}
 	XPUSHs(da_target_rvsv(aTHX_ (SV *) gv));
+	RETURN;
+}
+
+STATIC OP *da_pp_gvsv_r(pTHX) {
+	dSP;
+	GV *gv = cGVOP_gv;
+	if (PL_op->op_private & OPpLVAL_INTRO) {
+		da_localize_gvar(aTHX_ GvGP(gv), &GvSV(gv));
+		GvSV(gv) = newSV(0);
+	}
+	XPUSHs(GvSV(gv));
 	RETURN;
 }
 
@@ -491,13 +536,40 @@ STATIC OP *da_pp_rv2sv(pTHX) {
 		if (SvTYPE(sv) != SVt_PVGV || SvFAKE(sv))
 			DIE(aTHX_ PL_no_localize_ref);
 		switch (PL_op->op_type) {
-		case OP_RV2AV: save_ary((GV *) sv);  break;
-		case OP_RV2HV: save_hash((GV *) sv); break;
-		default: save_scalar((GV *) sv);
+		case OP_RV2AV:
+			da_localize_gvar(aTHX_ GvGP(sv), (SV **) &GvAV(sv));
+			break;
+		case OP_RV2HV:
+			da_localize_gvar(aTHX_ GvGP(sv), (SV **) &GvHV(sv));
+			break;
+		default:
+			da_localize_gvar(aTHX_ GvGP(sv), &GvSV(sv));
+			GvSV(sv) = newSV(0);
 		}
 	}
 	SETs(da_target_rvsv(aTHX_ sv));
 	RETURN;
+}
+
+STATIC OP *da_pp_rv2sv_r(pTHX) {
+	U32 savedflags;
+	OP *op = PL_op, *ret;
+
+	da_pp_rv2sv(aTHX);
+	*PL_stack_sp = LvTARG(*PL_stack_sp);
+
+	savedflags = op->op_private;
+	op->op_private = savedflags & ~OPpLVAL_INTRO;
+
+	switch (op->op_type) {
+	case OP_RV2AV:	ret = Perl_pp_rv2av(aTHX); break;
+	case OP_RV2HV:	ret = Perl_pp_rv2hv(aTHX); break;
+	default:	ret = Perl_pp_rv2sv(aTHX); break;
+	}
+
+	op->op_private = savedflags;
+
+	return ret;
 }
 
 #if DA_FEATURE_AVHV
@@ -814,16 +886,16 @@ STATIC OP *da_pp_splice(pTHX) {
 	for (i = 0; i < ins; i++)
 		SvTEMP_off(SvREFCNT_inc(MARK[i]));
 	if (ins > del) {
-		Move(svp+del, svp+ins, count, SV *);
+		Move(svp+del, svp+ins, (U32) count, SV *);
 		for (i = 0; i < del; i++)
 			tmp = MARK[i], MARK[i-3] = svp[i], svp[i] = tmp;
-		Copy(MARK+del, svp+del, ins-del, SV *);
+		Copy(MARK+del, svp+del, (U32)(ins-del), SV *);
 	} else {
 		for (i = 0; i < ins; i++)
 			tmp = MARK[i], MARK[i-3] = svp[i], svp[i] = tmp;
 		if (ins != del)
-			Copy(svp+ins, MARK-3+ins, del-ins, SV *);
-		Move(svp+del, svp+ins, count, SV *);
+			Copy(svp+ins, MARK-3+ins, (U32)(del-ins), SV *);
+		Move(svp+del, svp+ins, (U32) count, SV *);
 	}
 	MARK -= 3;
 	for (i = 0; i < del; i++)
@@ -1149,7 +1221,9 @@ STATIC void da_aassign(OP *op, OP *right) {
 	ra->op_flags |= OPf_REF;
 }
 
-STATIC void da_transform(pTHX_ OP *op, int sib) {
+STATIC int da_transform(pTHX_ OP *op, int sib) {
+	int hits = 0;
+
 	while (op) {
 		OP *kid = Nullop, *tmp;
 		int ksib = TRUE;
@@ -1158,10 +1232,12 @@ STATIC void da_transform(pTHX_ OP *op, int sib) {
 		if (op->op_flags & OPf_KIDS)
 			kid = cUNOPx(op)->op_first;
 
+		++hits;
 		switch ((optype = op->op_type)) {
 		case OP_NULL:
 			optype = op->op_targ;
 		default:
+			--hits;
 			switch (optype) {
 			case OP_SETSTATE:
 			case OP_NEXTSTATE:
@@ -1174,7 +1250,7 @@ STATIC void da_transform(pTHX_ OP *op, int sib) {
 						dDAforce;
 						PL_peepp = da_old_peepp;
 					}
-					return;
+					return hits;
 				}
 				break;
 			}
@@ -1182,6 +1258,8 @@ STATIC void da_transform(pTHX_ OP *op, int sib) {
 		case OP_LEAVE:
 			if (op->op_ppaddr != da_tag_entersub)
 				op->op_ppaddr = da_pp_leave;
+			else
+				hits--;
 			break;
 		case OP_LEAVESUB:
 		case OP_LEAVESUBLV:
@@ -1194,6 +1272,20 @@ STATIC void da_transform(pTHX_ OP *op, int sib) {
 			break;
 		case OP_ENTEREVAL:
 			op->op_ppaddr = da_pp_entereval;
+			break;
+		case OP_GVSV:
+			if (op->op_private & OPpLVAL_INTRO)
+				op->op_ppaddr = da_pp_gvsv_r;
+			else
+				hits--;
+			break;
+		case OP_RV2SV:
+		case OP_RV2AV:
+		case OP_RV2HV:
+			if (op->op_private & OPpLVAL_INTRO)
+				op->op_ppaddr = da_pp_rv2sv_r;
+			else
+				hits--;
 			break;
 		case OP_AASSIGN:
 			op->op_ppaddr = da_pp_aassign;
@@ -1246,17 +1338,20 @@ STATIC void da_transform(pTHX_ OP *op, int sib) {
 
 		if (sib && op->op_sibling) {
 			if (kid)
-				da_transform(aTHX_ kid, ksib);
+				hits += da_transform(aTHX_ kid, ksib);
 			op = op->op_sibling;
 		} else {
 			op = kid;
 			sib = ksib;
 		}
 	}
+
+	return hits;
 }
 
 STATIC int da_peep2(pTHX_ OP *o) {
 	OP *sib, *k;
+	int useful;
 	while (o->op_ppaddr != da_tag_list) {
 		while ((sib = o->op_sibling)) {
 			if ((o->op_flags & OPf_KIDS) && (k = cUNOPo->op_first)){
@@ -1273,6 +1368,7 @@ STATIC int da_peep2(pTHX_ OP *o) {
 		if (!(o->op_flags & OPf_KIDS) || !(o = cUNOPo->op_first))
 			return 0;
 	}
+	useful = o->op_private & OPpUSEFUL;
 	op_null(o);
 	o->op_ppaddr = PL_ppaddr[OP_NULL];
 	k = o = cLISTOPo->op_first;
@@ -1289,8 +1385,10 @@ STATIC int da_peep2(pTHX_ OP *o) {
 			if (sib->op_flags & OPf_SPECIAL) {
 				k->op_ppaddr = da_pp_copy;
 				da_peep2(aTHX_ o);
-			} else {
-				da_transform(aTHX_ o, TRUE);
+			} else if (!da_transform(aTHX_ o, TRUE)
+					&& !useful && ckWARN(WARN_VOID)) {
+				Perl_warner(aTHX_ packWARN(WARN_VOID),
+						"Useless use of alias");
 			}
 		}
 	}
@@ -1309,7 +1407,8 @@ STATIC void da_peep(pTHX_ OP *o) {
 		OP *tmp;
 		while ((tmp = o->op_next))
 			o = tmp;
-		da_transform(aTHX_ o, FALSE);
+		if (da_transform(aTHX_ o, FALSE))
+			da_inside = 2;
 	} else if (da_peep2(aTHX_ o)) {
 		PL_peepp = da_old_peepp;
 	}
@@ -1423,6 +1522,10 @@ STATIC OP *da_ck_entersub(pTHX_ OP *o) {
 	kid->op_type = OP_LIST;
 	kid->op_targ = 0;
 	kid->op_ppaddr = da_tag_list;
+	if (inside > 1)
+		kid->op_private |= OPpUSEFUL;
+	else
+		kid->op_private &= ~OPpUSEFUL;
 	tmp = kLISTOP->op_first;
 	if (inside)
 		op_null(tmp);
@@ -1439,18 +1542,6 @@ STATIC OP *da_ck_entersub(pTHX_ OP *o) {
 		kid->op_flags &= ~OPf_SPECIAL;
 	last->op_next = o;
 	return o;
-}
-
-STATIC MAGIC *mg_extract(SV *sv, int type) {
-	MAGIC **mgp, *mg;
-	for (mgp = &SvMAGIC(sv); (mg = *mgp); mgp = &mg->mg_moremagic) {
-		if (mg->mg_type == type) {
-			*mgp = mg->mg_moremagic;
-			mg->mg_moremagic = NULL;
-			return mg;
-		}
-	}
-	return NULL;
 }
 
 
@@ -1522,7 +1613,7 @@ deref(...)
 		I32 x = SvTYPE(sv);
 		if (x == SVt_PVAV) {
 			i -= x = AvFILL((AV *) sv) + 1;
-			Copy(AvARRAY((AV *) sv), SP + i + 1, x, SV *);
+			Copy(AvARRAY((AV *) sv), SP + i + 1, (U32) x, SV *);
 		} else if (x == SVt_PVHV) {
 			HE *entry;
 			HV *hv = (HV *) sv;
