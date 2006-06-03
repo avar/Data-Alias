@@ -1,37 +1,41 @@
 Revision history for Perl extension Data::Alias
 
-0.09  Mon May 22 17:12:06 CET 2006
+0.1   Sat Jun  3 17:44 CET 2006
+	- Enhanced performance of alias-assign
+	- Made a note about 'local' in the docs
+
+0.09  Mon May 22 17:12 CET 2006
 	- suppress warnings when using 64-bit integers on 32-bit arch
 	- 'local' now doesn't act differently on tied vars than on normal ones
 	- added "Useless use of alias" warning (category 'void')
 
-0.08  Wed Feb  8 20:19:58 CET 2006
+0.08  Wed Feb  8 20:19 CET 2006
 	- avoid giving the "tied array/hash" error when inappropriate, such
 	  as when the array/hash is merely the target of weakrefs
 
-0.07  Mon Feb  6 16:43:35 CET 2006
+0.07  Mon Feb  6 16:43 CET 2006
 	- removed outer lexical support, since it can't be made to work in
 	  any consistent way
 
-0.06  Mon Feb  6 00:35:24 CET 2006
+0.06  Mon Feb  6 00:35 CET 2006
 	- fixed memory mismanagement bug (crash)
 	- fixed parse failure of 'alias' or 'copy' at EOF
 
-0.05  Wed Jan 25 15:48:14 CET 2006
+0.05  Wed Jan 25 15:48 CET 2006
 	- split off Data::Swap again
 	- perl 5.9.3 support
 	- fixed alias-returning from within a nested block
 
-0.04  Sun Aug 29 21:01:06 CEST 2004
+0.04  Sun Aug 29 21:01 CEST 2004
 	- minor fix because PAUSE complained about missing version in Data::Swap
 
-0.03  Sun Aug 29 00:36:48 CEST 2004
+0.03  Sun Aug 29 00:36 CEST 2004
 	- initial version of Data::Alias  (incorporates Data::Swap)
 	- fixed swapping objects with weakrefs
 
-0.02  Thu Jul  3 11:34:51 CEST 2003
+0.02  Thu Jul  3 11:34 CEST 2003
 	- added Changes file.
 	- disallow swapping an overloaded object with a non-overloaded one.
 
-0.01  Mon Jun 30 20:08:38 CEST 2003
+0.01  Mon Jun 30 20:08 CEST 2003
 	- initial version.

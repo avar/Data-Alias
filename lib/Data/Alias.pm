@@ -111,6 +111,10 @@ Yields aliases (rather than copies) of the result expression.  In addition,
 an C<alias { ... }> expression is usable as lvalue (though with the assignment 
 outside C<alias>, it will not cause aliasing).
 
+=item C<local>
+
+Localizes without special behaviour with regard to tied variables.
+
 =back
 
 =head2 alias I<BLOCK>
@@ -149,7 +153,7 @@ use 5.008001;
 use strict;
 use warnings;
 
-our $VERSION = '0.09';
+our $VERSION = '0.1';
 
 use base 'Exporter';
 use base 'DynaLoader';
