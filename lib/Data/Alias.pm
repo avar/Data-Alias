@@ -8,135 +8,348 @@ Data::Alias - Comprehensive set of aliasing operations
 
     use Data::Alias;
 
+    alias {
+	    # aliasing instead of copying whenever possible
+    };
+
     alias $x = $y;		# alias $x to $y
+    alias @x = @y;		# alias @x to @y
     alias $x[0] = $y;		# similar for array and hash elements
     alias push @x, $y;		# push alias to $y onto @x
     $x = alias [ $y, $z ];	# construct array of aliases
-    alias my ($x, $y) = @_;	# named aliases to sub args
+    alias my ($x, $y) = @_;	# named aliases to arguments
     alias { ($x, $y) = ($y, $x) };		# swap $x and $y
-    alias { my @tmp = @x; @x = @y; @y = @tmp };	# swap @x and @y
+    alias { my @t = @x; @x = @y; @y = @t };	# swap @x and @y
 
-    use Data::Alias qw(deref);
+    use Data::Alias qw/ alias copy /;
 
-    my @refs = (\$x, \@y);
-    $_++ for deref @refs;	# dereference a list of references
+    alias { copy $x = $y };	# force copying inside alias-BLOCK
 
-    # Note that I omitted \%z from the @refs because $_++ would fail 
-    # on a key, but deref does work on hash-refs too of course.
+    use Data::Alias qw/ deref /;
+
+    my @refs = (\$x, \@y, \%z);
+    foo(deref @refs)		# same as foo($x, @y, %z)
 
 =head1 DESCRIPTION
 
-This module contains functions to work with variables without copying data 
-around.  You can use them for efficiency, or because you desire the aliasing 
-that occurs instead of copying.
+Aliasing is the phenomenon where two different expressions actually refer to 
+the same thing.  Modifying one will modify the other, and if you take a 
+reference to both, the two values are the same.
 
-The main function of this module is C<alias>, which is actually a special kind 
-of operator which applies I<alias semantics> to the evaluation of its argument 
-list.  Another function, C<copy>, restores the normal semantics and makes a 
-copy of the result list.  Both are exported by default.
+Aliasing occurs in Perl for example in for-loops and sub-calls:
 
-The utility function C<deref> is not exported by default.
+    for $var ($x) {
+            # here $var is an alias to $x
+    }
 
-=head2 alias I<LIST>
+    foo($y);
+    sub foo {
+            # here $_[0] is an alias to $y
+    }
 
-Evaluates the list with alias semantics, which just means that the behavior of 
-various kinds of operations is overridden as described below.  The alias 
-semantics propagate into inner lexical (but not dynamic) scopes, including 
-anonymous subroutines, but can be temporarily disabled with C<copy>.
+Data::Alias is a module that allows you to apply "aliasing semantics" to a 
+section of code, causing aliases to be made whereever Perl would normally make 
+copies instead.  You can use this to improve efficiency and readability, when 
+compared to using references.
 
-An C<alias> expression can be used as lvalue, though you will of course then 
-receive a runtime error if the results are in fact read-only.
+The exact details of aliasing semantics are below under L</DETAILS>.
 
-Alias semantics of operations:
+=head1 SYNTAX
+
+=head2 alias I<EXPR> | alias I<BLOCK>
+
+Exported by default.
+
+Enables aliasing semantics within the expression or block.  Returns an alias 
+to the expression, or the block's return value.
+
+C<alias> is context-transparent, meaning that whichever context it is placed in 
+(list, scalar, void), the expression/block is evaluated in the same context.
+
+=head2 copy I<EXPR> | copy I<BLOCK>
+
+Restores normal (copying) semantics within the expression or block, and 
+makes a copy of the result value (unless in void context).
+
+Like C<alias>, C<copy> is context-transparent.
+
+=head2 deref I<LIST>
+
+Accepts a list of references to scalars, arrays, or hashes.  Applies the 
+applicable dereferencing operator to each.  This means that:
+
+    deref $scalarref, $arrayref, $hashref
+
+behaves like:
+
+    $$scalarref, @$arrayref, %$hashref
+
+=head1 EXAMPLES
+
+A common usage of aliasing is to make an abbreviation for an expression, to 
+avoid having to repeat that (possibly verbose or ugly) expression over and 
+over:
+    
+    alias my $fi = $self->{FrobnitzIndex};
+    $fi = $fi > 0 ? $fi - $adj : $fi + $adj;
+
+    sub rc4 {
+            alias my ($i, $j, $S) = @_;
+            my $a = $S->[($i += 1) &= 255];
+            my $b = $S->[($j += $S->[$i]) &= 255];
+            $S->[(($S->[$j] = $a) + ($S->[$i] = $b)) & 255]
+    }
+
+In the second example, the rc4 function updates its first two arguments (two 
+state values) in addition to returning a value.
+
+Aliasing can also be used to avoid copying big strings.  This example would 
+work fine without C<alias> but would be much slower when passed a big string:
+
+    sub middlesection ($) {
+            alias my $s = shift;
+            substr $s, length($s)/4, length($s)/2
+    }
+
+You can also apply aliasing semantics to an entire block.  Here this is used to 
+swap two arrays in O(1) time:
+
+    alias {
+            my @temp = @x;
+            @x = @y;
+            @y = @temp;
+    };
+
+The C<copy> function is typically used to temporarily reinstate normal 
+semantics, but can also be used to explicitly copy a value when perl would 
+normally not do so:
+
+    my $ref = \copy $x;
+
+=head1 DETAILS
+
+This section describes exactly what the aliasing semantics are of operations.  
+Anything not listed below has unaltered behaviour.
 
 =over 4
 
 =item scalar assignment to variable or element.
 
-Makes the assignment target an alias to the result of the right-hand side 
-expression.  Works for package variables, lexical variables, array elements, 
-hash elements, and pseudo-hash elements.
+Makes the left-side of the assignment an alias to the right-side expression, 
+which can be anything.
 
-=item scalar assignment to dereference (C<$$x = ...>)
+    alias my $lexvar = $foo;
+    alias $pkgvar = $foo;
+    alias $array[$i] = $foo;
+    alias $hash{$k} = $foo;
 
-Makes C<$$x> an alias to the result of the right-hand side expression as 
-follows:  if C<$x> is a reference or undef, then C<$x> is simply changed to 
-reference the RHS result.  Otherwise the indicated package variable (via glob 
-or symbolic reference) is aliased.
+An attempt to do alias-assignment to an element of a tied (or "magical") array 
+or hash will result in a "Can't put alias into tied array/hash" error.
 
-=item scalar assignment to glob (C<*x = ...>)
+=item scalar assignment to dereference
 
-Works mostly as normal glob-assignment, since this is already aliasing 
-behavior, however it does not set the import-flag.
+If $ref is a reference or undef, this simply does C<$ref = \$foo>.  Otherwise, 
+the indicated package variable (via glob or symbolic reference) is made an 
+alias to the right-side expression.
+
+    alias $$ref = $foo;
+
+=item scalar assignment to glob
+
+Works mostly the same as normal glob-assignment, however it does not set the 
+import-flag.  (If you don't know what this means, you probably don't care)
+
+    alias *glob = $reference;
 
 =item scalar assignment to anything else
 
 Not supported.
 
-=item conditional scalar assignment (C<&&=>, C<||=>)
+    alias substr(...) = $foo;	# ERROR!
+    alias lvalsub() = $foo;	# ERROR!
 
-These work as you'd expect: they conditionally alias the target variable, 
-depending on the truth of the current value of the target.
+=item conditional scalar assignment
 
-You can also place a conditional expression (C<? :>) on the left side of an 
-assignment.
+Here C<$var> (and C<$var2>) are aliased to C<$foo> if the applicable condition 
+is satisfied.  C<$bool> and C<$foo> can be any expression.  C<$var> and 
+C<$var2> can be anything that is valid on the left-side of an alias-assignment.
 
-=item list assignment to whole aggregate (C<@x = ...>, C<%x = ...>)
+    alias $bool ? $var : $var2 = $foo;
+    alias $var &&= $foo;
+    alias $var ||= $foo;
+    alias $var //= $foo; # (perl 5.9.x or later)
 
-Normally list assignment aliases the I<contents> of an array or hash, however 
-if the left-hand side is a bare unparenthesized variable or dereference, the 
-whole thing is aliased.  That is, C<alias @x = @y> will make C<\@x == \@y>.
+=item whole aggregate assignment
 
-If the right-hand side expression is not an aggregate of the same type, a new 
-anonymous array or hash is created and used as variable to alias to.
+These alias entire aggregates (arrays or hashes), not merely their contents.  
+This means for example that C<\@lexarray == \@foo>.
 
-=item list assignment, all other cases
+    alias my @lexarray = @foo;
+    alias my %lexhash = %foo;
+    alias @pkgarray = @foo;
+    alias %pkghash = %foo;
 
-Behaves like usual list-assignment, except scalars are aliased over to their 
-destination, rather than copied.  The left-hand side list can contain valid 
-scalar targets, slices, and whole arrays, hashes, and pseudo-hashes.
+Making the left-side a dereference is also supported:
 
-=item C<push>, C<unshift>, C<splice>, C<[ ... ]>, C<{ ... }>
+    alias @$ref = @foo;
+    alias %$ref = %foo;
 
-Array operations and anonymous array and hash constructors work as usual, 
-except the new elements are aliases rather than copies.
+and analogously to assignment to scalar dereference, these will change C<$ref> 
+to reference the aggregate, if C<$ref> was undef or already a reference.  If 
+C<$ref> is a string or glob, the corresponding package variable is aliased.
 
-=item C<return>, including implicit return from C<sub> or C<eval>
+If the right-side expression is not an aggregate (of the same type), then a new 
+one is implicitly constructed.  This means:
 
-Returns aliases (rather than copies) from the current C<sub> or C<eval>.
+    alias my @array = ($x, $y, $z);
+    alias my %hash = (x => $x, y => $y);
 
-=item C<do { ... }>, and hence also C<alias { ... }>
+is translated to:
 
-Yields aliases (rather than copies) of the result expression.  In addition, 
-an C<alias { ... }> expression is usable as lvalue (though with the assignment 
-outside C<alias>, it will not cause aliasing).
+    alias my @array = @{ [$x, $y, $z] };
+    alias my %hash = %{ {x => $x, y => $y} };
 
-=item C<local>
+If you want to merely replace the contents of the aggregate with aliases to the 
+contents of another aggregate, but not alias the aggregates themselves, you can 
+force list-assignment by parenthesizing the left side, see below.
 
-Localizes without special behaviour with regard to tied variables.
+=item list assignment
+
+List assignment is any assignment where the left-side is an array-slice, 
+hash-slice, or list in parentheses.  This behaves essentially like many scalar 
+assignments in parallel.
+
+    alias my (@array) = ($x, $y, $z);
+    alias my (%hash) = (x => $x, y => $y);
+    alias my ($x, $y, @rest) = @_;
+    alias @x[0, 1] = @x[1, 0];
+
+Any scalars that appear on the left side must be valid targets for scalar 
+assignment.  When an array or hash appears on the left side, normally as the 
+last item, its contents are replaced by the list of all remaining right-side 
+elements.  C<undef> can also appear on the left side to skip one corresponding 
+item in the right-side list.
+
+Beware when putting a parenthesized list on the left side.  Just like Perl 
+parses C<print (1+2)*10> as C<(print(1+2))*10>, it would parse C<alias ($x, $y) 
+= ($y, $x)> as C<(alias($x, $y)) = ($y, $x)> which does not do any aliasing, 
+and results in the "Useless use of alias" warning, if warnings are enabled.
+
+To circumvent this issue, you can either one of the following:
+
+    alias +($x, $y) = ($y, $x);
+    alias { ($x, $y) = ($y, $x) };
+
+=item Anonymous aggregate constructors
+
+Return a reference to a new anonymous array or hash, populated with aliases.  
+This means that for example C<\$hashref-E<gt>{x} == \$x>.
+
+    my $arrayref = alias [$x, $y, $z];
+    my $hashref = alias {x => $x, y => $y};
+
+Note that this also works:
+
+    alias my $arrayref = [$x, $y, $z];
+    alias my $hashref = {x => $x, y => $y};
+
+but this makes the lhs an alias to the temporary, and therefore read-only, 
+reference made by C<[]> or C<{}>.  Therefore later attempts to assign to 
+C<$arrayref> or C<$hashref> results in an error.  The anonymous aggregate that 
+is referenced behaves the same in both cases obviously.
+
+=item Array insertions
+
+These work as usual, except the inserted elements are aliases.
+
+    alias push @array, $foo;
+    alias unshift @array, $foo;
+    alias splice @array, 1, 2, $foo;
+
+An attempt to do any of these on tied (or "magical") array will result in a 
+"Can't push/unshift/splice alias onto tied array" error.
+
+=item Returning an alias
+
+Returns aliases from the current C<sub> or C<eval>.  Normally this only happens 
+for lvalue subs, but C<alias return> can be used in any sub.
+
+=item Subroutines and evaluations
+
+Placing a subroutine or C<eval STRING> inside C<alias> causes it to be compiled 
+with aliasing semantics entirely.  Additionally, the return from such a sub or 
+eval, whether explicit using C<return> or implicitly the last statement, will 
+be an alias rather than a copy.
+
+    alias { sub foo { $x } };
+
+    my $subref = alias sub { $x };
+    
+    my $xref1 = \foo;
+    my $xref2 = \alias eval '$x';
+    my $xref3 = \$subref->();
+
+Explicitly returning an alias can also be done using C<alias return> inside any 
+subroutine or evaluation.
+
+    sub foo { alias return $x; }
+    my $xref = \foo;
+
+=item Localization
+
+Use of local inside C<alias> usually behaves the same as local does in general, 
+however there is a difference if the variable is tied:  in this case, Perl 
+doesn't localize the variable at all but instead preserves the tie by saving a 
+copy of the current value, and restoring this value at end of scope.
+
+    alias local $_ = $string;
+
+The aliasing semantics of C<local> avoids copying by always localizing the 
+variable itself, regardless of whether it is tied.
 
 =back
 
-=head2 alias I<BLOCK>
+=head1 IMPLEMENTATION
 
-C<alias { ... }> is shorthand for C<alias(do { ... })>.  Note that no further 
-arguments are expected, so C<alias { ... }, LIST> is parsed as 
-C<alias(do { ... }), LIST>.
+This module does B<not> use a source filter, and is therefore safe to use 
+within eval STRING.  Instead, Data::Alias hooks into the Perl parser, and 
+replaces operations within the scope of C<alias> by aliasing variants.
 
-=head2 copy I<LIST>
+For those familiar with perl's internals:  it triggers on a ck_rv2cv which 
+resolves to the imported C<alias> sub, and does a parser hack to allow the 
+C<alias BLOCK> syntax.  When the ck_entersub is triggered that corresponds to 
+it, the op is marked to be found later.  The actual work is done in a peep-hook 
+which is installed on the ck_rv2cv trigger, and processes the marked entersub 
+and its children, replacing the pp_addrs with aliasing replacements.  The peep 
+hook will also take care of any subs defined within the lexical (but not 
+dynamical) scope between the ck_rv2cv and the ck_entersub.  When no marked 
+entersubs remain, the Data::Alias-peeper stops and is deinstalled.
 
-Makes a copy of the list of values.  The list of arguments is evaluated with 
-normal semantics, even when nested inside C<alias>.
+=head1 KNOWN ISSUES
 
-=head2 copy I<BLOCK>
+=over 4
 
-C<copy { ... }> is shorthand for C<copy(do { ... })>.
+=item Lexical variables
 
-=head2 deref I<LIST>
+When aliasing existing lexical variables, the effect is limited in scope to the 
+current subroutine and any closures create after the aliasing is done, even if 
+the variable itself has wider scope.  While partial fixes are possible, it 
+cannot be fixed in any reliable or consistent way, and therefore I'm keeping 
+the current behaviour.
 
-Dereferences a list of scalar refs, array refs and hash refs.  Mainly exists 
-because you can't use C<map> for this application, as it makes copies of the 
-dereferenced values.
+=item Platform support
+
+Some platforms, notably Windows and AIX, will give link errors when attempting 
+to build Data::Alias.  This cannot be fixed.  When using Windows, you can use 
+perl inside cygwin (L<http://www.cygwin.com/>) instead, where Data::Alias does 
+work.
+
+=back
+
+=head1 ACKNOWLEDGEMENTS
+
+Specials thanks go to Elizabeth Mattijsen, Juerd Waalboer, and other members of 
+the Amsterdam Perl Mongers, for their valuable feedback.
 
 =head1 AUTHOR
 
@@ -153,12 +366,12 @@ use 5.008001;
 use strict;
 use warnings;
 
-our $VERSION = '0.1';
+our $VERSION = '1.0';
 
 use base 'Exporter';
 use base 'DynaLoader';
 
-our @EXPORT = qw(alias copy);
+our @EXPORT = qw(alias);
 our @EXPORT_OK = qw(alias copy deref);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 

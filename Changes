@@ -1,41 +1,51 @@
 Revision history for Perl extension Data::Alias
 
-0.1   Sat Jun  3 17:44 CET 2006
+1.0   Mon Jul 12 23:17 CEST 2006
+	- Further enhanced performance of alias-assign
+	- Fixed compile errors on non-gcc compilers
+	- Fixed aliasing a constant expression
+	- Don't export "copy" by default anymore
+	- Properly reallocate ops (bug exposed by perl 5.9.4 patch 27773)
+	- Enhanced performance of copy in void context
+	- Alias-refgen properly makes stuff read-only that ought to be
+	- Support defined-or-assign (//=) in perl 5.9.x
+
+0.10  Sat Jun  3 17:44 CEST 2006
 	- Enhanced performance of alias-assign
 	- Made a note about 'local' in the docs
 
-0.09  Mon May 22 17:12 CET 2006
-	- suppress warnings when using 64-bit integers on 32-bit arch
+0.09  Mon May 22 17:12 CEST 2006
+	- Suppress warnings when using 64-bit integers on 32-bit arch
 	- 'local' now doesn't act differently on tied vars than on normal ones
-	- added "Useless use of alias" warning (category 'void')
+	- Added "Useless use of alias" warning (category 'void')
 
 0.08  Wed Feb  8 20:19 CET 2006
-	- avoid giving the "tied array/hash" error when inappropriate, such
+	- Avoid giving the "tied array/hash" error when inappropriate, such
 	  as when the array/hash is merely the target of weakrefs
 
 0.07  Mon Feb  6 16:43 CET 2006
-	- removed outer lexical support, since it can't be made to work in
+	- Removed outer lexical support, since it can't be made to work in
 	  any consistent way
 
 0.06  Mon Feb  6 00:35 CET 2006
-	- fixed memory mismanagement bug (crash)
-	- fixed parse failure of 'alias' or 'copy' at EOF
+	- Fixed memory mismanagement bug (crash)
+	- Fixed parse failure of 'alias' or 'copy' at EOF
 
 0.05  Wed Jan 25 15:48 CET 2006
-	- split off Data::Swap again
-	- perl 5.9.3 support
-	- fixed alias-returning from within a nested block
+	- Split off Data::Swap again
+	- Perl 5.9.3 support
+	- Fixed alias-returning from within a nested block
 
 0.04  Sun Aug 29 21:01 CEST 2004
-	- minor fix because PAUSE complained about missing version in Data::Swap
+	- Minor fix because PAUSE complained about missing version in Data::Swap
 
 0.03  Sun Aug 29 00:36 CEST 2004
-	- initial version of Data::Alias  (incorporates Data::Swap)
-	- fixed swapping objects with weakrefs
+	- Initial version of Data::Alias  (incorporates Data::Swap)
+	- Fixed swapping objects with weakrefs
 
 0.02  Thu Jul  3 11:34 CEST 2003
-	- added Changes file.
-	- disallow swapping an overloaded object with a non-overloaded one.
+	- Added Changes file
+	- Disallow swapping an overloaded object with a non-overloaded one
 
 0.01  Mon Jun 30 20:08 CEST 2003
-	- initial version.
+	- Initial version

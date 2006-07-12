@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 15;
+use Test::More tests => 20;
 
 use Data::Alias;
 
@@ -36,5 +36,17 @@ is $r3, \%z;
 
 eval { alias local %$r3 = %y };
 like $@, qr/^Can't localize through a reference /;
+
+alias $r1 = \$y;
+is $r1, \$y;
+eval { $r1 = undef };
+like $@, qr/^Modification of a read-only value attempted /;
+
+alias $r2 = [$y, $z];
+is \$r2->[0], \$y;
+is \$r2->[1], \$z;
+eval {};
+eval { $r2 = undef };
+like $@, qr/^Modification of a read-only value attempted /;
 
 # vim: ft=perl

@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 36;
+use Test::More tests => 38;
 
 use Data::Alias;
 
@@ -31,9 +31,12 @@ is \$x{0}, \$x{2};
 is \alias($x{0} = undef), \undef;
 ok !exists $x{0};
 
+sub{alias my ($y) = @_}->($x{0});
+ok exists $x{0};
+
 SKIP: {
 no warnings 'deprecated';
-skip "pseudo-hashes not supported anymore", 18 unless eval { [{1,1},1]->{1} };
+skip "pseudo-hashes not supported anymore", 19 unless eval { [{1,1},1]->{1} };
 
 our $y = [{0 => 1, 1 => 2, 2 => 3}];
 
@@ -57,6 +60,9 @@ is \$y->{0}, \$y->{2};
 
 is \alias($y->{0} = undef), \undef;
 ok !exists $y->{0};
+
+sub{alias my ($x) = @_}->($y->{0});
+ok exists $y->{0};
 }
 
 # vim: ft=perl

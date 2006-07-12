@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 36;
+use Test::More tests => 37;
 
 use Data::Alias;
 
@@ -53,5 +53,8 @@ is \$y[0], \$y[2];
 
 is \alias($y[0] = undef), \undef;
 ok !exists $y[0];
+
+sub{alias my ($x) = @_}->($y[0]);
+ok exists $y[0];
 
 # vim: ft=perl

@@ -6,7 +6,7 @@ use lib 'lib';
 use Test::More tests => 17;
 use File::Spec;
 
-use Data::Alias;
+use Data::Alias qw/alias copy/;
 
 our $x;
 our $y;

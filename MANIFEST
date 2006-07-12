@@ -29,6 +29,8 @@ t/23_alias_list_whole.t
 t/24_alias_cond.t
 t/25_alias_weakref.t
 t/26_alias_local.t
+t/28_alias_const.t
+t/29_alias_dorassign.t
 t/lib/assign.pm
 t/lib/Test/Builder.pm
 t/lib/Test/More.pm
