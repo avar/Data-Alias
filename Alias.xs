@@ -24,6 +24,11 @@
 #endif
 
 
+#ifndef G_LIST
+#define G_LIST G_ARRAY
+#endif
+
+
 #ifndef RenewOpc
 #ifdef PL_OP_SLAB_ALLOC
 #define RenewOpc(m,v,n,t,c)		\
@@ -100,6 +105,7 @@
 #define DA_TARGET_ERR "Unsupported alias target"
 #define DA_TARGET_ERR_AT "Unsupported alias target at %s line %"UVuf"\n"
 #define DA_DEREF_ERR "Can't deref string (\"%.32s\")"
+#define DA_OUTER_ERR "Aliasing of outer lexical variable has limited scope"
 
 #define _PUSHaa(a1,a2) PUSHs((SV*)(Size_t)(a1));PUSHs((SV*)(Size_t)(a2))
 #define PUSHaa(a1,a2) STMT_START { _PUSHaa(a1,a2); } STMT_END
@@ -354,14 +360,11 @@ OP *DataAlias_pp_srefgen(pTHX) {
 
 OP *DataAlias_pp_refgen(pTHX) {
 	dSP; dMARK;
-	switch (GIMME_V) {
-	case G_SCALAR:
+	if (GIMME_V != G_LIST) {
 		++MARK;
 		*MARK = da_refgen(aTHX_ MARK <= SP ? TOPs : &PL_sv_undef);
-	case G_VOID:
 		SP = MARK;
-		break;
-	default:
+	} else {
 		EXTEND_MORTAL(SP - MARK);
 		while (++MARK <= SP)
 			*MARK = da_refgen(aTHX_ *MARK);
@@ -372,20 +375,27 @@ OP *DataAlias_pp_refgen(pTHX) {
 OP *DataAlias_pp_anonlist(pTHX) {
 	dSP; dMARK;
 	I32 i = SP - MARK;
-	AV *av = (AV *) sv_2mortal((SV *) newAV());
-	SV **svp;
+	AV *av = newAV();
+	SV **svp, *sv;
 	av_extend(av, i - 1);
 	AvFILLp(av) = i - 1;
 	svp = AvARRAY(av);
 	while (i--)
 		SvTEMP_off(svp[i] = SvREFCNT_inc_NN(POPs));
-	PUSHs((SV *) av);
+	if (PL_op->op_flags & OPf_SPECIAL) {
+		sv = da_refgen(aTHX_ (SV *) av);
+		SvREFCNT_dec((SV *) av);
+	} else {
+		sv = sv_2mortal((SV *) av);
+	}
+	XPUSHs(sv);
 	RETURN;
 }
 
 OP *DataAlias_pp_anonhash(pTHX) {
 	dSP; dMARK; dORIGMARK;
-	HV *hv = (HV *) sv_2mortal((SV *) newHV());
+	HV *hv = (HV *) newHV();
+	SV *sv;
 	while (MARK < SP) {
 		SV *key = *++MARK;
 		SV *val = &PL_sv_undef;
@@ -400,7 +410,13 @@ OP *DataAlias_pp_anonhash(pTHX) {
 			hv_store_ent(hv, key, val, 0);
 	}
 	SP = ORIGMARK;
-	PUSHs((SV *) hv);
+	if (PL_op->op_flags & OPf_SPECIAL) {
+		sv = da_refgen(aTHX_ (SV *) hv);
+		SvREFCNT_dec((SV *) hv);
+	} else {
+		sv = sv_2mortal((SV *) hv);
+	}
+	XPUSHs(sv);
 	RETURN;
 }
 
@@ -853,7 +869,7 @@ OP *DataAlias_pp_aassign(pTHX) {
 					nils--;
 				}
 			}
-			if (gimme != G_ARRAY || !dups) {
+			if (gimme != G_LIST || !dups) {
 				right = rlast - dups + 1;
 				break;
 			}
@@ -903,7 +919,7 @@ OP *DataAlias_pp_aassign(pTHX) {
 				}
 			}
 			LEAVE;
-			if (gimme != G_ARRAY || !dups) {
+			if (gimme != G_LIST || !dups) {
 				right = rlast - dups + 1;
 				break;
 			}
@@ -925,7 +941,7 @@ OP *DataAlias_pp_aassign(pTHX) {
 			break;
 		}
 	}
-	if (gimme == G_ARRAY) {
+	if (gimme == G_LIST) {
 		SP = right - 1;
 		EXTEND(SP, 0);
 		while (rlast < SP)
@@ -1088,7 +1104,7 @@ OP *DataAlias_pp_leave(pTHX) {
 			FREETMPS;
 			*++newsp = sv_2mortal(sv);
 		}
-	} else if (gimme == G_ARRAY) {
+	} else if (gimme == G_LIST) {
 		while (newsp < SP)
 			if (!SvTEMP(sv = *++newsp))
 				sv_2mortal(SvREFCNT_inc_simple_NN(sv));
@@ -1199,7 +1215,7 @@ OP *DataAlias_pp_return(pTHX) {
 			FREETMPS;
 			*++newsp = sv_2mortal(sv);
 		}
-	} else if (gimme == G_ARRAY) {
+	} else if (gimme == G_LIST) {
 		while (MARK < SP) {
 			*++newsp = sv = *++MARK;
 			if (!SvTEMP(sv) && !(SvREADONLY(sv) && SvIMMORTAL(sv)))
@@ -1278,7 +1294,12 @@ OP *DataAlias_pp_copy(pTHX) {
 
 STATIC void da_lvalue(pTHX_ OP *op, int list) {
 	switch (op->op_type) {
-	case OP_PADSV:     op->op_ppaddr = DataAlias_pp_padsv;     break;
+	case OP_PADSV:     op->op_ppaddr = DataAlias_pp_padsv;
+			   if (SvFAKE(AvARRAY(PL_comppad_name)[op->op_targ])
+					   && ckWARN(WARN_CLOSURE))
+				   Perl_warner(aTHX_ packWARN(WARN_CLOSURE),
+						   DA_OUTER_ERR);
+			   break;
 	case OP_AELEM:     op->op_ppaddr = DataAlias_pp_aelem;     break;
 	case OP_AELEMFAST: op->op_ppaddr = DataAlias_pp_aelemfast; break;
 	case OP_HELEM:     op->op_ppaddr = DataAlias_pp_helem;     break;

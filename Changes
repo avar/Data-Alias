@@ -1,5 +1,11 @@
 Revision history for Perl extension Data::Alias
 
+1.01  Fri Sep 29 23:39 CEST 2006
+	- Worked around perl bug (wrong context of refgen due to proto)
+	- Updated for recent bleadperl
+	- Warn on aliasing a lexical where the effect is limited in scope
+	  (category "closure")
+
 1.0   Mon Jul 12 23:17 CEST 2006
 	- Further enhanced performance of alias-assign
 	- Fixed compile errors on non-gcc compilers

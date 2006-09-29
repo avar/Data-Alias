@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 31;
+use Test::More tests => 32;
 
 use Data::Alias;
 
@@ -52,11 +52,15 @@ isnt \%x, \%z;
 is \$x{x}, \$z{x};
 
 sub foo {
+	no warnings 'closure';
 	alias $x = "inner";
 	sub { $x }
 }
 
 is foo->(), "inner";
 isnt $x, "inner";
+
+eval 'sub { alias $x = "inner"; }';
+like $@, qr/^Aliasing of outer lexical variable has limited scope/;
 
 # vim: ft=perl

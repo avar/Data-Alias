@@ -337,6 +337,10 @@ the variable itself has wider scope.  While partial fixes are possible, it
 cannot be fixed in any reliable or consistent way, and therefore I'm keeping 
 the current behaviour.
 
+When aliasing a lexical that was declared outside the current subroutine, a 
+compile-time warning is generated "Aliasing of outer lexical variable has 
+limited scope" (warnings category "closure").
+
 =item Platform support
 
 Some platforms, notably Windows and AIX, will give link errors when attempting 
@@ -366,7 +370,7 @@ use 5.008001;
 use strict;
 use warnings;
 
-our $VERSION = '1.0';
+our $VERSION = '1.01';
 
 use base 'Exporter';
 use base 'DynaLoader';
