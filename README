@@ -1,11 +1,9 @@
-Data::Alias 1.0 - Comprehensive set of aliasing operations
+Data::Alias 1.02 - Comprehensive set of aliasing operations
 
 
 Note:
 
    This module does not work on Win32 or AIX.
-
-   (It should however work on cygwin -- untested)
 
 
 To install this module type the following:
@@ -349,6 +347,6 @@ ACKNOWLEDGEMENTS
 AUTHOR
     Matthijs van Duin <xmath@cpan.org>
 
-    Copyright (C) 2003, 2004, 2006 Matthijs van Duin. All rights reserved.
+    Copyright (C) 2003-2007 Matthijs van Duin. All rights reserved.
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

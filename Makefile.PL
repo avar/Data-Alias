@@ -8,5 +8,6 @@ WriteMakefile(
 	NAME		=> 'Data::Alias',
 	VERSION_FROM	=> 'lib/Data/Alias.pm',
 	ABSTRACT_FROM	=> 'lib/Data/Alias.pm',
-	AUTHOR		=> 'Matthijs van Duin <xmath@cpan.org>'
+	AUTHOR		=> 'Matthijs van Duin <xmath@cpan.org>',
+	LICENSE		=> 'perl'
 );

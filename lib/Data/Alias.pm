@@ -359,7 +359,7 @@ the Amsterdam Perl Mongers, for their valuable feedback.
 
 Matthijs van Duin <xmath@cpan.org>
 
-Copyright (C) 2003, 2004, 2006  Matthijs van Duin.  All rights reserved.
+Copyright (C) 2003-2007  Matthijs van Duin.  All rights reserved.
 This program is free software; you can redistribute it and/or modify 
 it under the same terms as Perl itself.
 
@@ -370,7 +370,7 @@ use 5.008001;
 use strict;
 use warnings;
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 use base 'Exporter';
 use base 'DynaLoader';

@@ -86,6 +86,11 @@
 
 #define DA_ARRAY_MAXIDX ((IV) ((Size_t) -1 / sizeof(SV *)) )
 
+#if (PERL_COMBI_VERSION >= 5009005)
+#define PL_lex_defer		(PL_parser->lex_defer)
+#define PL_lex_expect		(PL_parser->lex_expect)
+#endif
+
 
 #define OPpALIASAV  2
 #define OPpALIASHV  4

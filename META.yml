@@ -1,11 +1,13 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Data-Alias
-version:      1.01
-version_from: lib/Data/Alias.pm
-license:      perl
-installdirs:  site
-requires:
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.17
+--- #YAML:1.0
+name:                Data-Alias
+version:             1.02
+abstract:            Comprehensive set of aliasing operations
+license:             perl
+generated_by:        ExtUtils::MakeMaker version 6.31_01
+distribution_type:   module
+requires:     
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.2.html
+    version: 1.2
+author:
+    - Matthijs van Duin <xmath@cpan.org>
