@@ -1,5 +1,8 @@
 Revision history for Perl extension Data::Alias
 
+1.03  Fri Mar 16 15:38 CET 2007
+	- Updated to work with recent bleadperl (5.9.5 patch 29836)
+
 1.02  Tue Jan  9 16:59 CET 2007
 	- Updated to work with recent bleadperl (5.9.5 patch 29570)
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003, 2004, 2006  Matthijs van Duin <xmath@cpan.org>
+/* Copyright (C) 2003, 2004, 2006, 2007  Matthijs van Duin <xmath@cpan.org>
  *
  * Parts from perl, which is Copyright (C) 1991-2006 Larry Wall and others
  *
@@ -786,6 +786,7 @@ OP *DataAlias_pp_aassign(pTHX) {
 		U32 type = hash ? SVt_PVHV : SVt_PVAV;
 		SV *a2 = POPs;
 		SV *a1 = POPs;
+		OPCODE savedop;
 		if (SP != rlast)
 			DIE(aTHX_ "Panic: unexpected number of lvalues");
 		PUTBACK;
@@ -795,13 +796,21 @@ OP *DataAlias_pp_aassign(pTHX) {
 			SPAGAIN;
 		}
 		da_alias(aTHX_ a1, a2, TOPs);
+		savedop = PL_op->op_type;
+#if (PERL_COMBI_VERSION >= 5009005)
+		PL_op->op_type = hash ? OP_RV2HV : OP_RV2AV;
+		pp_rv2av();
+#else
 		if (hash) {
 			PL_op->op_type = OP_RV2HV;
 			pp_rv2hv();
-			PL_op->op_type = OP_AASSIGN;
-			return NORMAL;
+		} else {
+			PL_op->op_type = OP_RV2AV;
+			pp_rv2av();
 		}
-		return pp_rv2av();
+#endif
+		PL_op->op_type = savedop;
+		return NORMAL;
 	}
 	SP = right - 1;
 	while (SP < rlast)

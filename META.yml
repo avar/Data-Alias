@@ -1,9 +1,9 @@
 --- #YAML:1.0
 name:                Data-Alias
-version:             1.02
+version:             1.03
 abstract:            Comprehensive set of aliasing operations
 license:             perl
-generated_by:        ExtUtils::MakeMaker version 6.31_01
+generated_by:        ExtUtils::MakeMaker version 6.32_01
 distribution_type:   module
 requires:     
 meta-spec:
