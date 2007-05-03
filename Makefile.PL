@@ -1,13 +1,19 @@
-use 5.008001;
-use ExtUtils::MakeMaker;
+use inc::Module::Install;
 use Config;
 
-die "Data::Alias does not support 5.005 threads\n" if $Config{use5005threads};
-
-WriteMakefile(
-	NAME		=> 'Data::Alias',
-	VERSION_FROM	=> 'lib/Data/Alias.pm',
-	ABSTRACT_FROM	=> 'lib/Data/Alias.pm',
-	AUTHOR		=> 'Matthijs van Duin <xmath@cpan.org>',
-	LICENSE		=> 'perl'
+my %fussy_OS = (
+	MSWin32	=> "Win32",
+	aix	=> "AIX",
 );
+
+$fussy_OS{$^O}  and $] < 5.008009  and die "ERROR:  [OS unsupported]  " .
+	"Data::Alias on $fussy_OS{$^O} requires perl 5.8.9 or later.\n";
+
+
+name     'Data-Alias';
+all_from 'lib/Data/Alias.pm';
+
+die "ERROR: Data::Alias does not support old 5.005-style threads\n"
+	if $Config{use5005threads};
+
+WriteAll;

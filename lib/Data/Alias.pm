@@ -1,5 +1,22 @@
 package Data::Alias;
 
+use 5.008001;
+
+use strict;
+use warnings;
+
+our $VERSION = '1.04';
+
+use base 'Exporter';
+use base 'DynaLoader';
+
+our @EXPORT = qw(alias);
+our @EXPORT_OK = qw(alias copy deref);
+our %EXPORT_TAGS = (all => \@EXPORT_OK);
+
+bootstrap Data::Alias $VERSION;
+pop our @ISA;
+
 =head1 NAME
 
 Data::Alias - Comprehensive set of aliasing operations
@@ -341,13 +358,6 @@ When aliasing a lexical that was declared outside the current subroutine, a
 compile-time warning is generated "Aliasing of outer lexical variable has 
 limited scope" (warnings category "closure").
 
-=item Platform support
-
-Some platforms, notably Windows and AIX, will give link errors when attempting 
-to build Data::Alias.  This cannot be fixed.  When using Windows, you can use 
-perl inside cygwin (L<http://www.cygwin.com/>) instead, where Data::Alias does 
-work.
-
 =back
 
 =head1 ACKNOWLEDGEMENTS
@@ -359,27 +369,12 @@ the Amsterdam Perl Mongers, for their valuable feedback.
 
 Matthijs van Duin <xmath@cpan.org>
 
+=head1 LICENSE
+
 Copyright (C) 2003-2007  Matthijs van Duin.  All rights reserved.
 This program is free software; you can redistribute it and/or modify 
 it under the same terms as Perl itself.
 
 =cut
 
-use 5.008001;
-
-use strict;
-use warnings;
-
-our $VERSION = '1.03';
-
-use base 'Exporter';
-use base 'DynaLoader';
-
-our @EXPORT = qw(alias);
-our @EXPORT_OK = qw(alias copy deref);
-our %EXPORT_TAGS = (all => \@EXPORT_OK);
-
-bootstrap Data::Alias $VERSION;
-pop our @ISA;
-
-1;
+__PACKAGE__

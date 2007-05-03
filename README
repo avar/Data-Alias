@@ -1,9 +1,11 @@
-Data::Alias 1.03 - Comprehensive set of aliasing operations
+Data::Alias 1.04 - Comprehensive set of aliasing operations
 
 
-Note:
+System requirements:
 
-   This module does not work on Win32 or AIX.
+   All platforms:  requires perl 5.8.1 or later
+   Win32:          requires perl 5.8.9 or later (or just use Cygwin)
+   AIX:            requires perl 5.8.9 or later
 
 
 To install this module type the following:
@@ -334,12 +336,6 @@ KNOWN ISSUES
         partial fixes are possible, it cannot be fixed in any reliable or
         consistent way, and therefore I'm keeping the current behaviour.
 
-    Platform support
-        Some platforms, notably Windows and AIX, will give link errors when
-        attempting to build Data::Alias. This cannot be fixed. When using
-        Windows, you can use perl inside cygwin (<http://www.cygwin.com/>)
-        instead, where Data::Alias does work.
-
 ACKNOWLEDGEMENTS
     Specials thanks go to Elizabeth Mattijsen, Juerd Waalboer, and other
     members of the Amsterdam Perl Mongers, for their valuable feedback.
@@ -347,6 +343,7 @@ ACKNOWLEDGEMENTS
 AUTHOR
     Matthijs van Duin <xmath@cpan.org>
 
+LICENSE
     Copyright (C) 2003-2007 Matthijs van Duin. All rights reserved.
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

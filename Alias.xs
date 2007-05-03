@@ -18,6 +18,12 @@
 #endif
 
 
+#if defined(PERL_CORE) && defined(MULTIPLICITY)
+#undef PL_sv_placeholder
+#define PL_sv_placeholder (*Perl_Gsv_placeholder_ptr(NULL))
+#endif
+
+
 #ifndef PERL_COMBI_VERSION
 #define PERL_COMBI_VERSION (PERL_REVISION * 1000000 + PERL_VERSION * 1000 + \
 				PERL_SUBVERSION)
@@ -84,11 +90,13 @@
 #define DA_FEATURE_RETOP 1
 #endif
 
-#define DA_ARRAY_MAXIDX ((IV) ((Size_t) -1 / sizeof(SV *)) )
+#define INT2SIZE(x) ((MEM_SIZE)(SSize_t)(x))
+#define DA_ARRAY_MAXIDX ((IV) (INT2SIZE(-1) / (2 * sizeof(SV *))) )
 
 #if (PERL_COMBI_VERSION >= 5009005)
 #define PL_lex_defer		(PL_parser->lex_defer)
 #define PL_lex_expect		(PL_parser->lex_expect)
+#define PL_linestr		(PL_parser->linestr)
 #endif
 
 
@@ -131,8 +139,8 @@ STATIC OP *(*da_old_ck_entersub)(pTHX_ OP *op);
 #define DA_FETCH(create) hv_fetch(PL_modglobal, DA_GLOBAL_KEY, \
 					sizeof(DA_GLOBAL_KEY) - 1, create)
 #define DA_ACTIVE ((_dap = DA_FETCH(FALSE)) && (_da = *_dap))
-#define DA_INIT (_da = *(_dap = DA_FETCH(TRUE)), \
-		SvUPGRADE(_da, SVt_PVLV), LvTYPE(_da) = 't')
+#define DA_INIT STMT_START { _dap = DA_FETCH(TRUE); _da = *_dap; \
+		sv_upgrade(_da, SVt_PVLV); LvTYPE(_da) = 't'; } STMT_END
 
 #define dDA SV *_da, **_dap
 #define dDAforce SV *_da = *DA_FETCH(FALSE)
@@ -196,6 +204,7 @@ STATIC SV *da_fetch(pTHX_ SV *a1, SV *a2) {
 		}
 	}
 	Perl_croak(aTHX_ DA_TARGET_ERR);
+	return NULL; /* suppress warning on win32 */
 }
 
 #define PREP_ALIAS_INC(sV)						\
@@ -697,7 +706,7 @@ OP *DataAlias_pp_rv2sv(pTHX) {
 }
 
 OP *DataAlias_pp_rv2sv_r(pTHX) {
-	U32 savedflags;
+	U8 savedflags;
 	OP *op = PL_op, *ret;
 
 	DataAlias_pp_rv2sv(aTHX);
@@ -741,7 +750,7 @@ OP *DataAlias_pp_rv2gv(pTHX) {
 }
 
 OP *DataAlias_pp_rv2av(pTHX) {
-	OP *ret = Perl_pp_rv2av(aTHX);
+	OP *ret = PL_ppaddr[OP_RV2AV](aTHX);
 	dSP;
 	SV *av = POPs;
 	XPUSHaa(DA_ALIAS_AV, av);
@@ -750,7 +759,7 @@ OP *DataAlias_pp_rv2av(pTHX) {
 }
 
 OP *DataAlias_pp_rv2hv(pTHX) {
-	OP *ret = Perl_pp_rv2hv(aTHX);
+	OP *ret = PL_ppaddr[OP_RV2HV](aTHX);
 	dSP;
 	SV *hv = POPs;
 	XPUSHaa(DA_ALIAS_HV, hv);
@@ -797,18 +806,8 @@ OP *DataAlias_pp_aassign(pTHX) {
 		}
 		da_alias(aTHX_ a1, a2, TOPs);
 		savedop = PL_op->op_type;
-#if (PERL_COMBI_VERSION >= 5009005)
 		PL_op->op_type = hash ? OP_RV2HV : OP_RV2AV;
-		pp_rv2av();
-#else
-		if (hash) {
-			PL_op->op_type = OP_RV2HV;
-			pp_rv2hv();
-		} else {
-			PL_op->op_type = OP_RV2AV;
-			pp_rv2av();
-		}
-#endif
+		PL_ppaddr[PL_op->op_type](aTHX);
 		PL_op->op_type = savedop;
 		return NORMAL;
 	}
@@ -1071,16 +1070,16 @@ OP *DataAlias_pp_splice(pTHX) {
 	for (i = 0; i < ins; i++)
 		SvTEMP_off(SvREFCNT_inc_NN(MARK[i]));
 	if (ins > del) {
-		Move(svp+del, svp+ins, (U32) count, SV *);
+		Move(svp+del, svp+ins, INT2SIZE(count), SV *);
 		for (i = 0; i < del; i++)
 			tmp = MARK[i], MARK[i-3] = svp[i], svp[i] = tmp;
-		Copy(MARK+del, svp+del, (U32)(ins-del), SV *);
+		Copy(MARK+del, svp+del, INT2SIZE(ins-del), SV *);
 	} else {
 		for (i = 0; i < ins; i++)
 			tmp = MARK[i], MARK[i-3] = svp[i], svp[i] = tmp;
 		if (ins != del)
-			Copy(svp+ins, MARK-3+ins, (U32)(del-ins), SV *);
-		Move(svp+del, svp+ins, (U32) count, SV *);
+			Copy(svp+ins, MARK-3+ins, INT2SIZE(del-ins), SV *);
+		Move(svp+del, svp+ins, INT2SIZE(count), SV *);
 	}
 	MARK -= 3;
 	for (i = 0; i < del; i++)
@@ -1275,7 +1274,7 @@ OP *DataAlias_pp_entereval(pTHX) {
 		da_old_peepp = peepp;
 		PL_peepp = da_peep;
 	}
-	ret = pp_entereval();
+	ret = PL_ppaddr[OP_ENTEREVAL](aTHX);
 	da_iscope = iscope;
 	da_inside = inside;
 	PL_peepp = peepp;
@@ -1291,15 +1290,18 @@ OP *DataAlias_pp_copy(pTHX) {
 		break;
 	case G_SCALAR:
 		if (MARK == SP) {
-			XPUSHs(&PL_sv_undef);
-			break;
+			sv = sv_newmortal();
+			EXTEND(SP, 1);
+		} else {
+			sv = TOPs;
+			if (!SvTEMP(sv) || SvREFCNT(sv) != 1)
+				sv = sv_mortalcopy(sv);
 		}
-		sv = TOPs;
 		*(SP = MARK + 1) = sv;
-		/* fall through */
+		break;
 	default:
 		while (MARK < SP) {
-			if (!SvTEMP(sv = *++MARK) || SvREFCNT(sv) > 1)
+			if (!SvTEMP(sv = *++MARK) || SvREFCNT(sv) != 1)
 				*MARK = sv_mortalcopy(sv);
 		}
 	}
@@ -1435,7 +1437,7 @@ STATIC int da_transform(pTHX_ OP *op, int sib) {
 		++hits;
 		switch ((optype = op->op_type)) {
 		case OP_NULL:
-			optype = op->op_targ;
+			optype = (OPCODE) op->op_targ;
 		default:
 			--hits;
 			switch (optype) {
@@ -1773,7 +1775,6 @@ BOOT:
 	{
 	static int initialized = 0;
 	dDA;
-	OP_REFCNT_LOCK;
 	DA_INIT;
 	da_cv = get_cv("Data::Alias::alias", TRUE);
 	da_cvc = get_cv("Data::Alias::copy", TRUE);
@@ -1783,7 +1784,6 @@ BOOT:
 		da_old_ck_entersub = PL_check[OP_ENTERSUB];
 		PL_check[OP_ENTERSUB] = da_ck_entersub;
 	}
-	OP_REFCNT_UNLOCK;
 	CvLVALUE_on(get_cv("Data::Alias::deref", TRUE));
 	}
 
@@ -1833,7 +1833,7 @@ deref(...)
 		I32 x = SvTYPE(sv);
 		if (x == SVt_PVAV) {
 			i -= x = AvFILL((AV *) sv) + 1;
-			Copy(AvARRAY((AV *) sv), SP + i + 1, (U32) x, SV *);
+			Copy(AvARRAY((AV *) sv), SP + i + 1, INT2SIZE(x), SV *);
 		} else if (x == SVt_PVHV) {
 			HE *entry;
 			HV *hv = (HV *) sv;

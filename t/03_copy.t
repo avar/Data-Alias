@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 13;
+use Test::More tests => 14;
 
 use Data::Alias 'copy';
 
@@ -35,6 +35,10 @@ is $x, $y;
 
 $x = "".\nonmortal;
 $y = "".\copy nonmortal;
+isnt $x, $y;
+
+$x = "".\scalar copy();
+$y = "".\undef;
 isnt $x, $y;
 
 # vim: ft=perl

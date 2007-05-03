@@ -1,5 +1,12 @@
 Revision history for Perl extension Data::Alias
 
+1.04  Thu May  3 16:17 CEST 2007
+	- Avoid directly calling pp_* functions
+	- Fixed copy() of empty list in scalar context
+	- Updated to work with recent bleadperl (5.9.5 patch 31058)
+	- Switched to using Module::Install
+	- Added perl version compatibility test on Win32 and AIX
+
 1.03  Fri Mar 16 15:38 CET 2007
 	- Updated to work with recent bleadperl (5.9.5 patch 29836)
 
