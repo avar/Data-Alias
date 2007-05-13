@@ -94,9 +94,22 @@
 #define DA_ARRAY_MAXIDX ((IV) (INT2SIZE(-1) / (2 * sizeof(SV *))) )
 
 #if (PERL_COMBI_VERSION >= 5009005)
+#ifdef PERL_MAD
+#error "Data::Alias doesn't support Misc Attribute Decoration yet"
+#endif
 #define PL_lex_defer		(PL_parser->lex_defer)
 #define PL_lex_expect		(PL_parser->lex_expect)
 #define PL_linestr		(PL_parser->linestr)
+#define PL_expect		(PL_parser->expect)
+#define PL_bufptr		(PL_parser->bufptr)
+#define PL_oldbufptr		(PL_parser->oldbufptr)
+#define PL_oldoldbufptr		(PL_parser->oldoldbufptr)
+#define PL_bufend		(PL_parser->bufend)
+#define PL_last_uni		(PL_parser->last_uni)
+#define PL_last_lop		(PL_parser->last_lop)
+#define PL_lex_state		(PL_parser->lex_state)
+#define PL_nexttoke		(PL_parser->nexttoke)
+#define PL_nexttype		(PL_parser->nexttype)
 #endif
 
 
