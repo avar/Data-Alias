@@ -1,5 +1,8 @@
 Revision history for Perl extension Data::Alias
 
+1.06  Thu Jun 28 22:29 CEST 2007
+	- Fixed crash when conditionally aliasing whole aggregate
+
 1.05  Sun May  6 16:36 CEST 2007
 	- Updated to work with recent bleadperl (5.9.5 patch 31154)
 

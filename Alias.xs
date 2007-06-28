@@ -110,6 +110,7 @@
 #define PL_lex_state		(PL_parser->lex_state)
 #define PL_nexttoke		(PL_parser->nexttoke)
 #define PL_nexttype		(PL_parser->nexttype)
+#define PL_tokenbuf		(PL_parser->tokenbuf)
 #endif
 
 
@@ -610,21 +611,11 @@ OP *DataAlias_pp_hslice(pTHX) {
 	RETURN;
 }
 
-STATIC void da_aliasclearsv(pTHX_ SV **svp) {
-	SV *old = *svp;
-	*svp = &PL_sv_undef;
-	SvREFCNT_dec(old);
-}
-
 OP *DataAlias_pp_padsv(pTHX) {
 	dSP;
 	IV index = PL_op->op_targ;
-	if (PL_op->op_private & OPpLVAL_INTRO) {
-		SSCHECK(3);
-		SSPUSHDXPTR((void (*)(pTHX_ void *)) da_aliasclearsv);
-		SSPUSHPTR(&PAD_SVl(index));
-		SSPUSHINT(SAVEt_DESTRUCTOR_X);
-	}
+	if (PL_op->op_private & OPpLVAL_INTRO)
+		SAVEGENERICSV(PAD_SVl(index));
 	XPUSHaa(DA_ALIAS_PAD, index);
 	RETURN;
 }

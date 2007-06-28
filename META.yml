@@ -2,7 +2,7 @@
 abstract: Comprehensive set of aliasing operations
 author: Matthijs van Duin <xmath@cpan.org>
 distribution_type: module
-generated_by: Module::Install version 0.65
+generated_by: Module::Install version 0.67
 license: perl
 meta-spec: 
   url: http://module-build.sourceforge.net/META-spec-v1.3.html
@@ -14,4 +14,4 @@ no_index:
     - t
 requires: 
   perl: 5.8.1
-version: 1.05
+version: 1.06
