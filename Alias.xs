@@ -614,8 +614,10 @@ OP *DataAlias_pp_hslice(pTHX) {
 OP *DataAlias_pp_padsv(pTHX) {
 	dSP;
 	IV index = PL_op->op_targ;
-	if (PL_op->op_private & OPpLVAL_INTRO)
+	if (PL_op->op_private & OPpLVAL_INTRO) {
 		SAVEGENERICSV(PAD_SVl(index));
+		PAD_SVl(index) = &PL_sv_undef;
+	}
 	XPUSHaa(DA_ALIAS_PAD, index);
 	RETURN;
 }

@@ -3,7 +3,7 @@
 use strict;
 use warnings qw(FATAL all);
 use lib 'lib';
-use Test::More tests => 32;
+use Test::More tests => 34;
 
 use Data::Alias;
 
@@ -51,16 +51,27 @@ isnt \alias(%x = (%z)), \%z;
 isnt \%x, \%z;
 is \$x{x}, \$z{x};
 
+my $outer = "outer";
+
 sub foo {
 	no warnings 'closure';
-	alias $x = "inner";
-	sub { $x }
+	alias $outer = "inner";
+	sub { $outer }
 }
 
 is foo->(), "inner";
-isnt $x, "inner";
+is $outer, "outer";
 
-eval 'sub { alias $x = "inner"; }';
+eval 'sub { alias $outer = "inner"; }';
 like $@, qr/^Aliasing of outer lexical variable has limited scope/;
+
+sub bar {
+	alias my $x &&= 42;
+	alias my $y ||= 42;
+	[$x, $y]
+}
+
+is bar->[0], undef;
+is bar->[1], 42;
 
 # vim: ft=perl

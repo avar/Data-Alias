@@ -1,5 +1,8 @@
 Revision history for Perl extension Data::Alias
 
+1.07  Mon Sep 10 22:25 CEST 2007
+	- Fixed reference miscounting for 'my VAR' inside alias
+
 1.06  Thu Jun 28 22:29 CEST 2007
 	- Fixed crash when conditionally aliasing whole aggregate
 
