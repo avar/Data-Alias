@@ -85,13 +85,41 @@
 #define SvREFCNT_inc_simple_void_NN SvREFCNT_inc_simple_NN
 #endif
 
-#if (PERL_COMBI_VERSION >= 5009002)
+#if (PERL_COMBI_VERSION >= 5009003)
 #define DA_FEATURE_MULTICALL 1
+#endif
+
+#if (PERL_COMBI_VERSION >= 5009002)
 #define DA_FEATURE_RETOP 1
 #endif
 
 #define INT2SIZE(x) ((MEM_SIZE)(SSize_t)(x))
 #define DA_ARRAY_MAXIDX ((IV) (INT2SIZE(-1) / (2 * sizeof(SV *))) )
+
+#ifndef Nullsv
+#define Nullsv ((SV*)NULL)
+#endif
+
+#ifndef Nullop
+#define Nullop ((OP*)NULL)
+#endif
+
+#if (PERL_COMBI_VERSION >= 5011000) && !defined(SVt_RV)
+#define SVt_RV SVt_IV
+#endif
+
+#if (PERL_COMBI_VERSION >= 5006000) && (PERL_COMBI_VERSION < 5011000)
+#define case_OP_SETSTATE_ case OP_SETSTATE:
+#else
+#define case_OP_SETSTATE_
+#endif
+
+#if (PERL_COMBI_VERSION >= 5011002)
+static char const msg_no_symref[] =
+	"Can't use string (\"%.32s\") as %s ref while \"strict refs\" in use";
+#else
+#define msg_no_symref PL_no_symref
+#endif
 
 #if (PERL_COMBI_VERSION >= 5009005)
 #ifdef PERL_MAD
@@ -111,6 +139,9 @@
 #define PL_nexttoke		(PL_parser->nexttoke)
 #define PL_nexttype		(PL_parser->nexttype)
 #define PL_tokenbuf		(PL_parser->tokenbuf)
+#define PL_yylval		(PL_parser->yylval)
+#elif (PERL_COMBI_VERSION >= 5009001)
+#define PL_yylval		(*PL_yylvalp)
 #endif
 
 
@@ -687,7 +718,7 @@ OP *DataAlias_pp_rv2sv(pTHX) {
 		if (!SvOK(sv))
 			break;
 		if (PL_op->op_private & HINT_STRICT_REFS)
-			DIE(aTHX_ PL_no_symref, SvPV_nolen(sv), tname);
+			DIE(aTHX_ msg_no_symref, SvPV_nolen(sv), tname);
 		sv = (SV *) gv_fetchpv(SvPV_nolen(sv), TRUE, type);
 	} while (0);
 	if (SvTYPE(sv) == SVt_PVGV)
@@ -744,7 +775,7 @@ OP *DataAlias_pp_rv2gv(pTHX) {
 		if (!SvOK(sv))
 			DIE(aTHX_ PL_no_usym, "a symbol");
 		if (PL_op->op_private & HINT_STRICT_REFS)
-			DIE(aTHX_ PL_no_symref, SvPV_nolen(sv), "a symbol");
+			DIE(aTHX_ msg_no_symref, SvPV_nolen(sv), "a symbol");
 		sv = (SV *) gv_fetchpv(SvPV_nolen(sv), TRUE, SVt_PVGV);
 	}
 	if (SvTYPE(sv) == SVt_PVGV)
@@ -1447,7 +1478,7 @@ STATIC int da_transform(pTHX_ OP *op, int sib) {
 		default:
 			--hits;
 			switch (optype) {
-			case OP_SETSTATE:
+			case_OP_SETSTATE_
 			case OP_NEXTSTATE:
 			case OP_DBSTATE:
 				PL_curcop = (COP *) op;
@@ -1586,7 +1617,7 @@ STATIC int da_peep2(pTHX_ OP *o) {
 				if (da_peep2(aTHX_ k))
 					return 1;
 			} else switch (o->op_type ? o->op_type : o->op_targ) {
-			case OP_SETSTATE:
+			case_OP_SETSTATE_
 			case OP_NEXTSTATE:
 			case OP_DBSTATE:
 				PL_curcop = (COP *) o;
@@ -1651,7 +1682,7 @@ STATIC OP *da_ck_rv2cv(pTHX_ OP *o) {
 	dDA;
 	SV **sp;
 	OP *kid;
-	char *s;
+	char *s, *start_s;
 	CV *cv;
 	o = da_old_ck_rv2cv(aTHX_ o);
 	kid = cUNOPo->op_first;
@@ -1663,32 +1694,49 @@ STATIC OP *da_ck_rv2cv(pTHX_ OP *o) {
 	if (PL_lex_state != LEX_NORMAL && PL_lex_state != LEX_INTERPNORMAL)
 		return o; /* not lexing? */
 	SvPOK_off(cv);
-	s = PL_oldbufptr;
-	while (s < PL_bufend && isSPACE(*s)) s++;
-	if (memEQ(s, PL_tokenbuf, strlen(PL_tokenbuf))) {
-		s += strlen(PL_tokenbuf);
-		if (PL_bufptr > s) s = PL_bufptr;
-		while (s < PL_bufend && isSPACE(*s)) s++;
-	} else {
-		s = "";
-	}
-	op_null(o);
 	o->op_ppaddr = da_tag_rv2cv;
 	if (cv == da_cv)
 		o->op_flags &= ~OPf_SPECIAL;
 	else
 		o->op_flags |= OPf_SPECIAL;
+	start_s = s = PL_oldbufptr;
+	while (s < PL_bufend && isSPACE(*s)) s++;
+	if (memEQ(s, PL_tokenbuf, strlen(PL_tokenbuf))) {
+		s += strlen(PL_tokenbuf);
+		if (PL_bufptr > s) s = PL_bufptr;
+#if (PERL_COMBI_VERSION >= 5011002)
+		{
+			char *old_buf = SvPVX(PL_linestr);
+			char *old_bufptr = PL_bufptr;
+			PL_bufptr = s;
+			lex_read_space(LEX_KEEP_PREVIOUS);
+			if (SvPVX(PL_linestr) != old_buf)
+				Perl_croak(aTHX_ "Data::Alias can't handle "
+					"lexer buffer reallocation");
+			s = PL_bufptr;
+			PL_bufptr = old_bufptr;
+		}
+#else
+		while (s < PL_bufend && isSPACE(*s)) s++;
+#endif
+	} else {
+		s = "";
+	}
 	if (*s == '{') { /* here comes deep magic */
 		I32 shift;
+		YYSTYPE yylval = PL_yylval;
 		PL_bufptr = s;
 		PL_expect = XSTATE;
 		if ((PL_nexttype[PL_nexttoke++] = yylex()) == '{') {
 			PL_nexttype[PL_nexttoke++] = DO;
 			sv_setpv((SV *) cv, "$");
 		}
-		PL_lex_defer = PL_lex_state;
-		PL_lex_expect = PL_expect;
-		PL_lex_state = LEX_KNOWNEXT;
+		if(PL_lex_state != LEX_KNOWNEXT) {
+			PL_lex_defer = PL_lex_state;
+			PL_lex_expect = PL_expect;
+			PL_lex_state = LEX_KNOWNEXT;
+		}
+		PL_yylval = yylval;
 		if ((shift = s - PL_bufptr)) { /* here comes deeper magic */
 			s = SvPVX(PL_linestr);
 			PL_bufptr += shift;
@@ -1712,6 +1760,8 @@ STATIC OP *da_ck_rv2cv(pTHX_ OP *o) {
 				SvCUR(PL_linestr) += shift;
 			}
 			*(PL_bufend = s + SvCUR(PL_linestr)) = '\0';
+			if (start_s < PL_bufptr)
+				memset(start_s, ' ', PL_bufptr-start_s);
 		}
 	}
 	if (!da_peeps++) {
