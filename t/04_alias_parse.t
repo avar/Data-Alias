@@ -4,7 +4,7 @@ use strict;
 use warnings qw(FATAL all);
 no warnings 'void';
 use lib 'lib';
-use Test::More tests => 23;
+use Test::More tests => 20;
 
 use Data::Alias;
 
@@ -45,16 +45,5 @@ is $x, 3;
 
 $x = alias { !alias 1, 2 }, 3;
 is $x, !2;
-
-use Switch;  # install a source filter, just for fun
-
-is alias
-(42), 42;
-
-is alias{42}, 42;
-
-is alias#{{{{{{{
-{#}}}}}
-42 }, 42;
 
 # vim: ft=perl
